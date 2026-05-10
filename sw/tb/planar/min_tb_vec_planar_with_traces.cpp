@@ -1,0 +1,453 @@
+#include "Vcve2_top.h"
+#include "verilated.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#ifndef DONE_MMIO_ADDR
+#define DONE_MMIO_ADDR 0xFFFF0000u
+#endif
+
+#ifndef COMP_START_MMIO_ADDR
+#define COMP_START_MMIO_ADDR 0xFFFF0004u
+#endif
+
+#ifndef COMP_END_MMIO_ADDR
+#define COMP_END_MMIO_ADDR 0xFFFF0008u
+#endif
+
+#ifndef UART_MMIO_ADDR
+#define UART_MMIO_ADDR 0x10000000u
+#endif
+
+static vluint64_t main_time = 0;
+double sc_time_stamp() { return static_cast<double>(main_time); }
+
+static constexpr uint32_t IMEM_BASE = 0x00000000u;
+static constexpr uint32_t DMEM_BASE = 0x80000000u;
+
+static constexpr uint32_t MAT_N       = 8u;
+static constexpr uint32_t MAT_A_ADDR  = 0x00010000u;
+static constexpr uint32_t MAT_BT_ADDR = 0x00011000u;
+static constexpr uint32_t MAT_C_ADDR  = 0x00012000u;
+static constexpr uint32_t TMP_ADDR    = 0x00013000u;
+
+static constexpr uint32_t IMEM_BYTES = 32 * 1024 * 1024;
+static constexpr uint32_t DMEM_BYTES = 32 * 1024 * 1024;
+static std::vector<uint8_t> imem(IMEM_BYTES, 0);
+static std::vector<uint8_t> dmem(DMEM_BYTES, 0);
+
+static inline bool imem_translate(uint32_t addr, uint32_t& off) {
+  if (addr >= IMEM_BASE && addr < (IMEM_BASE + IMEM_BYTES)) {
+    off = addr - IMEM_BASE;
+    return true;
+  }
+  return false;
+}
+
+static inline bool dmem_translate(uint32_t addr, uint32_t& idx) {
+  if (addr >= DMEM_BASE && addr < (DMEM_BASE + DMEM_BYTES)) {
+    idx = addr - DMEM_BASE;
+    return true;
+  }
+  return false;
+}
+
+static inline uint32_t load_le_u32(const std::vector<uint8_t>& mem, uint32_t off) {
+  if (off + 3u >= mem.size()) return 0;
+  return (uint32_t)mem[off + 0u] |
+         ((uint32_t)mem[off + 1u] << 8) |
+         ((uint32_t)mem[off + 2u] << 16) |
+         ((uint32_t)mem[off + 3u] << 24);
+}
+
+static inline void store_le_u32(std::vector<uint8_t>& mem, uint32_t off, uint32_t wdata, uint8_t be) {
+  if (off + 3u >= mem.size()) return;
+  for (int i = 0; i < 4; i++) {
+    if (be & (1u << i)) mem[off + (uint32_t)i] = (uint8_t)((wdata >> (8 * i)) & 0xFFu);
+  }
+}
+
+static inline uint32_t data_load_u32(uint32_t addr) {
+  uint32_t off = 0;
+  if (addr < IMEM_BYTES && imem_translate(addr, off)) return load_le_u32(imem, off);
+  if (dmem_translate(addr, off)) return load_le_u32(dmem, off);
+  return 0;
+}
+
+static inline void data_store_u32(uint32_t addr, uint32_t wdata, uint8_t be) {
+  uint32_t off = 0;
+  if (addr < IMEM_BYTES && imem_translate(addr, off)) {
+    store_le_u32(imem, off, wdata, be);
+    return;
+  }
+  if (dmem_translate(addr, off)) store_le_u32(dmem, off, wdata, be);
+}
+
+static uint32_t golden_c[MAT_N][MAT_N];
+static uint32_t golden_total = 0;
+static uint32_t golden_diag  = 0;
+
+static void preload_matmul8_inputs(void) {
+  uint32_t a[MAT_N][MAT_N];
+  uint32_t b[MAT_N][MAT_N];
+
+  for (uint32_t i = 0; i < MAT_N; ++i) {
+    for (uint32_t k = 0; k < MAT_N; ++k) {
+      a[i][k] = 1u + i + 2u * k;
+      b[i][k] = 3u + 3u * i + k;
+    }
+  }
+
+  golden_total = 0;
+  golden_diag  = 0;
+  for (uint32_t i = 0; i < MAT_N; ++i) {
+    for (uint32_t j = 0; j < MAT_N; ++j) {
+      uint32_t sum = 0;
+      for (uint32_t k = 0; k < MAT_N; ++k) sum += a[i][k] * b[k][j];
+      golden_c[i][j] = sum;
+      golden_total += sum;
+      if (i == j) golden_diag += sum;
+    }
+  }
+
+  for (uint32_t i = 0; i < MAT_N; ++i) {
+    for (uint32_t k = 0; k < MAT_N; ++k) {
+      data_store_u32(MAT_A_ADDR + 4u * (i * MAT_N + k), a[i][k], 0xFu);
+    }
+  }
+
+  for (uint32_t j = 0; j < MAT_N; ++j) {
+    for (uint32_t k = 0; k < MAT_N; ++k) {
+      data_store_u32(MAT_BT_ADDR + 4u * (j * MAT_N + k), b[k][j], 0xFu);
+    }
+  }
+
+  for (uint32_t i = 0; i < MAT_N * MAT_N; ++i) {
+    data_store_u32(MAT_C_ADDR + 4u * i, 0, 0xFu);
+  }
+  for (uint32_t i = 0; i < MAT_N; ++i) {
+    data_store_u32(TMP_ADDR + 4u * i, 0, 0xFu);
+  }
+
+  std::cout << "[TB] Preloaded matmul8 inputs"
+            << " A@0x"  << std::hex << std::setw(8) << std::setfill('0') << MAT_A_ADDR
+            << " BT@0x" << std::setw(8) << MAT_BT_ADDR
+            << " C@0x"  << std::setw(8) << MAT_C_ADDR
+            << " TMP@0x"<< std::setw(8) << TMP_ADDR
+            << std::dec << "\n";
+  std::cout << "[TB] Golden total=0x" << std::hex << std::setw(8) << golden_total
+            << " diag=0x" << std::setw(8) << golden_diag << std::dec << "\n";
+}
+
+static size_t load_objcopy_verilog_hex_bytes(const std::string& path,
+                                             std::vector<uint8_t>& imem,
+                                             std::vector<uint8_t>& dmem) {
+  std::ifstream f(path);
+  if (!f) return 0;
+
+  std::string tok;
+  uint32_t addr = 0;
+  size_t written = 0;
+  enum class Target { IMEM, DMEM, NONE } tgt = Target::IMEM;
+
+  auto hex_to_u32 = [](const std::string& s) -> uint32_t {
+    return (uint32_t)std::strtoul(s.c_str(), nullptr, 16);
+  };
+
+  while (f >> tok) {
+    if (tok.empty()) continue;
+    if (tok[0] == '@') {
+      addr = hex_to_u32(tok.substr(1));
+      uint32_t off = 0;
+      if (imem_translate(addr, off)) {
+        tgt = Target::IMEM;
+        addr = off;
+      } else if (dmem_translate(addr, off)) {
+        tgt = Target::DMEM;
+        addr = off;
+      } else {
+        tgt = Target::NONE;
+      }
+      continue;
+    }
+
+    uint32_t b = hex_to_u32(tok) & 0xFFu;
+    if (tgt == Target::IMEM) {
+      if (addr < imem.size()) { imem[addr] = (uint8_t)b; written++; }
+    } else if (tgt == Target::DMEM) {
+      if (addr < dmem.size()) { dmem[addr] = (uint8_t)b; written++; }
+    }
+    addr++;
+  }
+
+  return written;
+}
+
+int main(int argc, char** argv) {
+  Verilated::commandArgs(argc, argv);
+
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0]
+              << " <prog.hex> [--max-cycles N] [--print-every N] [--trace-if] [--trace-d]\n";
+    return 1;
+  }
+
+  std::string hex_path = argv[1];
+  uint64_t max_cycles = 200000;
+  uint64_t print_every = 20000;
+  bool trace_if = false;
+  bool trace_d = false;
+
+  for (int i = 2; i < argc; i++) {
+    std::string a = argv[i];
+    if (a == "--max-cycles" && (i + 1) < argc) {
+      max_cycles = std::stoull(argv[++i]);
+    } else if (a == "--print-every" && (i + 1) < argc) {
+      print_every = std::stoull(argv[++i]);
+    } else if (a == "--trace-if") {
+      trace_if = true;
+    } else if (a == "--trace-d") {
+      trace_d = true;
+    } else {
+      std::cerr << "Unknown arg: " << a << "\n";
+      return 1;
+    }
+  }
+
+  imem.assign(IMEM_BYTES, 0);
+  dmem.assign(DMEM_BYTES, 0);
+  size_t loaded = load_objcopy_verilog_hex_bytes(hex_path, imem, dmem);
+  std::cout << "[TB] Loaded " << hex_path << " into IMEM (bytes=" << loaded << ")\n";
+  preload_matmul8_inputs();
+
+  Vcve2_top* dut = new Vcve2_top();
+
+  dut->clk_i = 0;
+  dut->rst_ni = 0;
+  dut->fetch_enable_i = 0;
+  dut->hart_id_i = 0;
+  dut->boot_addr_i = 0x00000000;
+  dut->instr_gnt_i = 0;
+  dut->instr_rvalid_i = 0;
+  dut->instr_rdata_i = 0;
+  dut->instr_err_i = 0;
+  dut->data_gnt_i = 0;
+  dut->data_rvalid_i = 0;
+  dut->data_rdata_i = 0;
+  dut->data_err_i = 0;
+
+  for (int i = 0; i < 10; i++) {
+    dut->clk_i = 0; dut->eval(); main_time++;
+    dut->clk_i = 1; dut->eval(); main_time++;
+  }
+  dut->rst_ni = 1;
+  for (int i = 0; i < 5; i++) {
+    dut->clk_i = 0; dut->eval(); main_time++;
+    dut->clk_i = 1; dut->eval(); main_time++;
+  }
+  dut->fetch_enable_i = 1;
+  std::cout << "[TB] Reset released, fetch_enable_i=1, starting simulation loop...\n";
+
+  bool if_resp_due = false;
+  uint32_t if_resp_addr = 0;
+
+  bool d_resp_due = false;
+  uint32_t d_resp_addr = 0;
+  bool d_resp_is_write = false;
+
+  uint64_t uart_chars = 0;
+  bool done_seen = false;
+  uint32_t done_value = 0;
+  uint64_t done_cycle = 0;
+
+  bool comp_start_seen = false;
+  bool comp_end_seen = false;
+  uint64_t comp_start_cycle = 0;
+  uint64_t comp_end_cycle = 0;
+
+  for (uint64_t cyc = 0; cyc < max_cycles; cyc++) {
+    dut->clk_i = 0;
+
+    dut->instr_rvalid_i = if_resp_due ? 1 : 0;
+    dut->instr_err_i = 0;
+    uint32_t if_insn = 0;
+    if (if_resp_due) {
+      uint32_t off = 0;
+      if (imem_translate(if_resp_addr, off)) if_insn = load_le_u32(imem, off);
+      else if_insn = 0;
+      dut->instr_rdata_i = if_insn;
+    } else {
+      dut->instr_rdata_i = 0;
+    }
+
+    dut->data_rvalid_i = d_resp_due ? 1 : 0;
+    dut->data_err_i = 0;
+    uint32_t d_rdata = 0;
+    if (d_resp_due) {
+      if (d_resp_is_write) {
+        d_rdata = 0;
+      } else {
+        d_rdata = data_load_u32(d_resp_addr);
+      }
+      dut->data_rdata_i = d_rdata;
+    } else {
+      dut->data_rdata_i = 0;
+    }
+
+    dut->instr_gnt_i = (if_resp_due ? 0 : 1);
+    dut->data_gnt_i  = (d_resp_due  ? 0 : 1);
+
+    dut->eval();
+    main_time++;
+
+    if (trace_if && if_resp_due) {
+      std::cout << "[IF] resp pc=0x" << std::hex << std::setw(8) << std::setfill('0')
+                << if_resp_addr << " insn=0x" << std::setw(8) << if_insn << std::dec << "\n";
+    }
+    if (trace_d && d_resp_due) {
+      std::cout << "[D ] resp  addr=0x" << std::hex << std::setw(8) << std::setfill('0')
+                << d_resp_addr << " (" << (d_resp_is_write ? "WR" : "RD") << ") rdata=0x"
+                << std::setw(8) << d_rdata << std::dec << "\n";
+    }
+
+    const bool if_fire = (dut->instr_req_o && dut->instr_gnt_i);
+    const bool d_fire  = (dut->data_req_o  && dut->data_gnt_i);
+
+    bool if_resp_due_next = false;
+    uint32_t if_resp_addr_next = 0;
+
+    bool d_resp_due_next = false;
+    uint32_t d_resp_addr_next = 0;
+    bool d_resp_is_write_next = false;
+
+    if (if_fire) {
+      if_resp_due_next = true;
+      if_resp_addr_next = (uint32_t)dut->instr_addr_o;
+      if (trace_if) {
+        std::cout << "[IF] accept pc=0x" << std::hex << std::setw(8) << std::setfill('0')
+                  << if_resp_addr_next << std::dec << "\n";
+      }
+    }
+
+    if (d_fire) {
+      const uint32_t addr = (uint32_t)dut->data_addr_o;
+      const bool we = dut->data_we_o ? true : false;
+      const uint32_t wdata = (uint32_t)dut->data_wdata_o;
+      const uint8_t be = (uint8_t)dut->data_be_o;
+
+      if (we) {
+        if (addr == UART_MMIO_ADDR) {
+          char c = (char)(wdata & 0xFFu);
+          std::cout << c << std::flush;
+          uart_chars++;
+        } else if (addr == COMP_START_MMIO_ADDR) {
+          comp_start_seen = true;
+          comp_start_cycle = cyc;
+        } else if (addr == COMP_END_MMIO_ADDR) {
+          comp_end_seen = true;
+          comp_end_cycle = cyc;
+        } else if (addr == DONE_MMIO_ADDR) {
+          done_seen = true;
+          done_value = wdata;
+          done_cycle = cyc;
+        } else {
+          data_store_u32(addr, wdata, be);
+        }
+      }
+
+      d_resp_due_next = true;
+      d_resp_addr_next = addr;
+      d_resp_is_write_next = we;
+
+      if (trace_d) {
+        std::cout << "[D ] accept addr=0x" << std::hex << std::setw(8) << std::setfill('0')
+                  << addr << " (" << (we ? "WR" : "RD") << ") wdata=0x" << std::setw(8) << wdata
+                  << " be=0x" << std::setw(2) << (uint32_t)be << std::dec << "\n";
+      }
+    }
+
+    if (print_every != 0 && ((cyc % print_every) == 0)) {
+      std::cout << "[TB] cyc=" << std::dec << cyc
+                << " instr_req=" << (int)dut->instr_req_o
+                << " instr_addr=0x" << std::hex << std::setw(8) << std::setfill('0') << (uint32_t)dut->instr_addr_o
+                << " instr_gnt=" << std::dec << (int)dut->instr_gnt_i
+                << " instr_rvalid=" << (int)dut->instr_rvalid_i
+                << " data_req=" << (int)dut->data_req_o
+                << " data_we=" << (int)dut->data_we_o
+                << " data_addr=0x" << std::hex << std::setw(8) << std::setfill('0') << (uint32_t)dut->data_addr_o
+                << " data_gnt=" << std::dec << (int)dut->data_gnt_i
+                << " data_rvalid=" << (int)dut->data_rvalid_i
+                << " sleep=" << (int)dut->core_sleep_o
+                << " uart_chars=" << uart_chars
+                << std::dec << "\n";
+    }
+
+    dut->clk_i = 1;
+    dut->eval();
+    main_time++;
+
+    if_resp_due = if_resp_due_next;
+    if_resp_addr = if_resp_addr_next;
+
+    d_resp_due = d_resp_due_next;
+    d_resp_addr = d_resp_addr_next;
+    d_resp_is_write = d_resp_is_write_next;
+
+    if (done_seen && (cyc > (done_cycle + 4))) {
+      std::cout << "[TB] DONE seen (addr=0x" << std::hex << DONE_MMIO_ADDR
+                << ") value=0x" << std::setw(8) << std::setfill('0') << done_value
+                << std::dec << " at cyc=" << done_cycle << "\n";
+      break;
+    }
+  }
+
+  uint32_t got_total = 0;
+  uint32_t got_diag = 0;
+  unsigned mismatches = 0;
+  for (uint32_t i = 0; i < MAT_N; ++i) {
+    for (uint32_t j = 0; j < MAT_N; ++j) {
+      uint32_t got = data_load_u32(MAT_C_ADDR + 4u * (i * MAT_N + j));
+      got_total += got;
+      if (i == j) got_diag += got;
+      if (got != golden_c[i][j]) {
+        if (mismatches < 8) {
+          std::printf("[TB] MISMATCH C[%u][%u]: got=0x%08x exp=0x%08x\n", i, j, got, golden_c[i][j]);
+        }
+        mismatches++;
+      }
+    }
+  }
+
+  std::printf("[TB] Output total=0x%08x diag=0x%08x\n", got_total, got_diag);
+  std::printf("[TB] Golden total=0x%08x diag=0x%08x\n", golden_total, golden_diag);
+  std::printf("[TB] Output check: %s (mismatches=%u)\n", mismatches ? "FAIL" : "PASS", mismatches);
+
+  if (comp_start_seen) {
+    std::cout << "[TB] COMP_START seen at cyc=" << comp_start_cycle << "\n";
+  }
+  if (comp_end_seen) {
+    std::cout << "[TB] COMP_END   seen at cyc=" << comp_end_cycle << "\n";
+  }
+  if (comp_start_seen && comp_end_seen && comp_end_cycle >= comp_start_cycle) {
+    std::cout << "[TB] KERNEL_CYCLES=" << (comp_end_cycle - comp_start_cycle) << "\n";
+  }
+
+  if (!done_seen) {
+    std::cerr << "[TB] ERROR: timeout or premature finish\n";
+  } else {
+    std::cout << "[TB] Finished\n";
+  }
+
+  dut->final();
+  delete dut;
+  return (done_seen && mismatches == 0) ? 0 : 1;
+}
