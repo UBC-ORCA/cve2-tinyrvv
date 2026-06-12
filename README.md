@@ -12,11 +12,11 @@ TinyRVV targets RVV-Lite Layer A.1 with SEW=32, LMUL=1, and VLEN=256. The goal i
 
 **Guy Lemieux**
 The University of British Columbia
-[Email](mailto:lemieux@ece.ubc.ca)
+[lemieux@ece.ubc.ca](mailto:lemieux@ece.ubc.ca)
 
 **Jerry Yun**
 The University of British Columbia
-[Email](mailto:zizhuoyun@gmail.com)
+[zizhuoyun@gmail.com](mailto:zizhuoyun@gmail.com)
 
 
 
