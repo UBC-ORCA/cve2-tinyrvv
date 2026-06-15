@@ -1,0 +1,104 @@
+
+Merging object attributes
+
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+RAM              0x00000000         0x00020000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD /tmp/ccLZzOEU.o
+LOAD /tmp/ccrEHPrg.o
+LOAD /tmp/ccggHzuH.o
+LOAD /tmp/cc0rl8Yj.o
+
+.text           0x00000000      0x34c
+ *(.text.init)
+ .text.init     0x00000000       0x1c /tmp/ccLZzOEU.o
+                0x00000000                _start
+ *(.text*)
+ .text          0x0000001c        0x0 /tmp/ccLZzOEU.o
+ .text          0x0000001c       0x40 /tmp/ccrEHPrg.o
+                0x0000001c                putchar_uart
+ .text          0x0000005c      0x1f8 /tmp/ccggHzuH.o
+                0x0000012c                main
+ .text          0x00000254       0xf8 /tmp/cc0rl8Yj.o
+                0x00000254                matmul8_vec
+
+.rodata         0x0000034c       0x36
+ *(.rodata*)
+ .rodata        0x0000034c       0x36 /tmp/ccggHzuH.o
+
+.srodata        0x00000384        0xc
+ .srodata       0x00000384        0xc /tmp/ccggHzuH.o
+
+.rela.dyn       0x00000390        0x0
+ .rela.text.init
+                0x00000390        0x0 /tmp/ccLZzOEU.o
+
+.data           0x00000390        0x0
+ *(.data*)
+ .data          0x00000390        0x0 /tmp/ccLZzOEU.o
+ .data          0x00000390        0x0 /tmp/ccrEHPrg.o
+ .data          0x00000390        0x0 /tmp/ccggHzuH.o
+ .data          0x00000390        0x0 /tmp/cc0rl8Yj.o
+
+.mat_a          0x00010000      0x100
+ *(.mat_a)
+ .mat_a         0x00010000      0x100 /tmp/ccggHzuH.o
+
+.mat_bt         0x00011000      0x100
+ *(.mat_bt)
+ .mat_bt        0x00011000      0x100 /tmp/ccggHzuH.o
+
+.mat_c          0x00012000      0x100
+ *(.mat_c)
+ .mat_c         0x00012000      0x100 /tmp/ccggHzuH.o
+
+.tmp_prod       0x00013000       0x20
+ *(.tmp_prod)
+ .tmp_prod      0x00013000       0x20 /tmp/ccggHzuH.o
+
+.bss            0x00013020        0x0
+ *(.bss*)
+ .bss           0x00013020        0x0 /tmp/ccLZzOEU.o
+ .bss           0x00013020        0x0 /tmp/ccrEHPrg.o
+ .bss           0x00013020        0x0 /tmp/ccggHzuH.o
+ .bss           0x00013020        0x0 /tmp/cc0rl8Yj.o
+ *(COMMON)
+                0x00013020                        . = ALIGN (0x8)
+                0x00020000                        _stack_top = (ORIGIN (RAM) + LENGTH (RAM))
+                0x00000001                        ASSERT ((SIZEOF (.mat_a) <= 0x100), .mat_a exceeds 8x8 words)
+                0x00000001                        ASSERT ((SIZEOF (.mat_bt) <= 0x100), .mat_bt exceeds 8x8 words)
+                0x00000001                        ASSERT ((SIZEOF (.mat_c) <= 0x100), .mat_c exceeds 8x8 words)
+                0x00000001                        ASSERT ((SIZEOF (.tmp_prod) <= 0x20), .tmp_prod exceeds 8 words)
+OUTPUT(matmul8_vec.elf elf32-littleriscv)
+
+.riscv.attributes
+                0x00000000       0x2a
+ .riscv.attributes
+                0x00000000       0x28 /tmp/ccLZzOEU.o
+ .riscv.attributes
+                0x00000028       0x2a /tmp/ccrEHPrg.o
+ .riscv.attributes
+                0x00000052       0x2a /tmp/ccggHzuH.o
+ .riscv.attributes
+                0x0000007c       0x28 /tmp/cc0rl8Yj.o
+
+.comment        0x00000000       0x19
+ .comment       0x00000000       0x19 /tmp/ccrEHPrg.o
+                                 0x1a (size before relaxing)
+ .comment       0x00000019        0x0 /tmp/ccggHzuH.o
+                                 0x1a (size before relaxing)
+
+.note.GNU-stack
+                0x00000000        0x0
+ .note.GNU-stack
+                0x00000000        0x0 /tmp/ccrEHPrg.o
+ .note.GNU-stack
+                0x00000000        0x0 /tmp/ccggHzuH.o
