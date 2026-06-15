@@ -66,11 +66,12 @@ gen-vc:
 	cd $(VC_DIR) && \
 	cp $(VC_NAME) $(VC_PATCHED) && \
 	sed -i \
-		'/dpi_memutil.cc/d; \
-		 /ecc32_mem_area.cc/d; \
-		 /mem_area.cc/d; \
-		 /sv_scoped.cc/d; \
-		 /scrambled_ecc32_mem_area.cc/d' \
+		-e '/--lint-only/d' \
+		-e '/dpi_memutil.cc/d' \
+		-e '/ecc32_mem_area.cc/d' \
+		-e '/mem_area.cc/d' \
+		-e '/sv_scoped.cc/d' \
+		-e '/scrambled_ecc32_mem_area.cc/d' \
 		$(VC_PATCHED)
 
 ###############################################################################
