@@ -59,3 +59,43 @@ These are typically provided by a RISC-V GCC toolchain installation.
 
 **start.S** and **uart.c**
   - https://github.com/JerryYun2004/RISC-V-RVV-Lite/tree/LUTRAM-VRF/sw/support
+
+## Example Commands
+
+The following commands are executed by `make -f matmul8.mk`.
+
+### Build ELF Executable
+
+```bash
+riscv32-unknown-elf-gcc \
+  -T matmul8_shared_link.ld \
+  -march=rv32im \
+  -mabi=ilp32 \
+  -nostdlib -ffreestanding \
+  -Wl,-Map=matmul8.map \
+  start.S uart.c matmul8_vec_test.c matmul8_vec.S \
+  -o matmul8_vec.elf
+```
+
+This command compiles and links the application into the RISC-V executable:
+
+- `matmul8_vec.elf`
+
+and generates the linker map:
+
+- `matmul8.map`
+
+### Generate Verilog HEX Image
+
+```bash
+riscv32-unknown-elf-objcopy \
+  -O verilog \
+  matmul8_vec.elf \
+  matmul8_vec.hex
+```
+
+This command converts the ELF executable into a Verilog memory initialization file:
+
+- `matmul8_vec.hex`
+
+which can be loaded into instruction memory for simulation or FPGA execution.
