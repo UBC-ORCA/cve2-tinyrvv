@@ -45,6 +45,7 @@ The following tools must be available in your PATH:
 - `riscv32-unknown-elf-objcopy`
 
 These are typically provided by a RISC-V GCC toolchain installation.
+  - https://github.com/riscv-collab/riscv-gnu-toolchain/releases
 
 ## Source File Locations
 
