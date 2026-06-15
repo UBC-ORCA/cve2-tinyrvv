@@ -48,28 +48,14 @@ These are typically provided by a RISC-V GCC toolchain installation.
 
 ## Source File Locations
 
-The source files used by this build were obtained from the following locations:
+**matmul8_vec.S**
+  - https://github.com/UBC-ORCA/cve2-tinyrvv/blob/main/sw/benchmarks/matrix/matmul8_vec.S
 
-### matmul8_vec.S
+**matmul8_vec_test.c**
+  - https://github.com/UBC-ORCA/cve2-tinyrvv/blob/main/sw/benchmarks/matrix/matmul8_vec_test.c
 
-From:
+**matmul8_shared_link.ld**
+  - https://github.com/JerryYun2004/RISC-V-RVV-Lite/blob/LUTRAM-VRF/sw/lint/matmul8_shared_link.ld
 
-:contentReference[oaicite:0]{index=0}
-
-### matmul8_vec_test.c
-
-From:
-
-:contentReference[oaicite:1]{index=1}
-
-### matmul8_shared_link.ld
-
-From:
-
-:contentReference[oaicite:2]{index=2}
-
-### start.S and uart.c
-
-From:
-
-:contentReference[oaicite:3]{index=3}
+**start.S** and **uart.c**
+  - https://github.com/JerryYun2004/RISC-V-RVV-Lite/tree/LUTRAM-VRF/sw/support
