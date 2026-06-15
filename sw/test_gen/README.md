@@ -45,3 +45,31 @@ The following tools must be available in your PATH:
 - `riscv32-unknown-elf-objcopy`
 
 These are typically provided by a RISC-V GCC toolchain installation.
+
+## Source File Locations
+
+The source files used by this build were obtained from the following locations:
+
+### matmul8_vec.S
+
+From:
+
+:contentReference[oaicite:0]{index=0}
+
+### matmul8_vec_test.c
+
+From:
+
+:contentReference[oaicite:1]{index=1}
+
+### matmul8_shared_link.ld
+
+From:
+
+:contentReference[oaicite:2]{index=2}
+
+### start.S and uart.c
+
+From:
+
+:contentReference[oaicite:3]{index=3}
