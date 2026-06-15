@@ -417,3 +417,11 @@ verilator -f openhwgroup_cve2_cve2_top_0.1.vc \
   -LDFLAGS "-lelf" \
   ../../../../sw/tb/matrix_tb/min_tb_matmul8.cpp
 ```
+
+## RUN CMD
+
+After building the simulator, run the generated executable with the Matmul8 program image:
+
+```bash
+./build/openhwgroup_cve2_cve2_top_0.1/lint-verilator/Vcve2_top \
+    ../sw/test_gen/matmul8_vec.hex

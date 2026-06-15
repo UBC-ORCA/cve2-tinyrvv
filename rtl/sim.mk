@@ -30,11 +30,11 @@ VC_PATCHED := openhwgroup_cve2_cve2_top_0.1_patched.vc
 all: run
 
 ###############################################################################
-# STEP 1: FuseSoC build (IMPORTANT FIXED TARGET)
+# STEP 1: Generate FuseSoC file list (.vc)
 ###############################################################################
 .PHONY: fuse
 fuse:
-	@echo "Running FuseSoC build..."
+	@echo "Running FuseSoC setup..."
 	VERILATOR_OPTIONS="-Wno-fatal" \
 	PATH="$(PWD)/venv_cve2/bin:$$PATH" \
 	fusesoc --cores-root=. run \
@@ -45,25 +45,18 @@ fuse:
 		$$(./util/cve2_config.py $(CVE2_CONFIG) fusesoc_opts)
 
 ###############################################################################
-# STEP 2: Locate VC file dynamically
-###############################################################################
-
-VC_FILE := $(shell find build -name $(VC_NAME) | head -n 1)
-VC_DIR := $(dir $(VC_FILE))
-
-###############################################################################
-# STEP 3: Patch VC file
+# STEP 2: Patch VC file
 ###############################################################################
 .PHONY: gen-vc
 gen-vc:
-	@if [ -z "$(VC_FILE)" ]; then \
+	@VC_FILE=$$(find build -name "$(VC_NAME)" | head -n 1); \
+	if [ -z "$$VC_FILE" ]; then \
 		echo "ERROR: VC file not found. Run 'make fuse' first."; \
 		exit 1; \
-	fi
-
-	@echo "Patching VC file in $(VC_DIR)"
-
-	cd $(VC_DIR) && \
+	fi; \
+	VC_DIR=$$(dirname "$$VC_FILE"); \
+	echo "Patching VC file in $$VC_DIR"; \
+	cd "$$VC_DIR" && \
 	cp $(VC_NAME) $(VC_PATCHED) && \
 	sed -i \
 		-e '/--lint-only/d' \
@@ -75,16 +68,18 @@ gen-vc:
 		$(VC_PATCHED)
 
 ###############################################################################
-# STEP 4: Build simulation
+# STEP 3: Build simulation
 ###############################################################################
 .PHONY: build-sim
 build-sim:
-	@if [ -z "$(VC_FILE)" ]; then \
+	@VC_FILE=$$(find build -name "$(VC_NAME)" | head -n 1); \
+	if [ -z "$$VC_FILE" ]; then \
 		echo "ERROR: VC file not found. Run 'make fuse' first."; \
 		exit 1; \
-	fi
-
-	cd $(VC_DIR) && \
+	fi; \
+	VC_DIR=$$(dirname "$$VC_FILE"); \
+	echo "Building simulator in $$VC_DIR"; \
+	cd "$$VC_DIR" && \
 	verilator -f $(VC_PATCHED) \
 		-Wall \
 		-Wno-fatal \
@@ -94,13 +89,15 @@ build-sim:
 		$(TB_CPP)
 
 ###############################################################################
-# STEP 5: Full pipeline
+# STEP 4: Full pipeline
 ###############################################################################
 .PHONY: run
 run: fuse gen-vc build-sim
 	@echo "=================================================="
 	@echo "CVE2 + Matmul8 build complete"
-	@echo "Output: $(VC_DIR)/obj_dir/"
+	@echo "=================================================="
+	@echo "Generated executable:"
+	@find build -name Vcve2_top 2>/dev/null || true
 	@echo "=================================================="
 
 ###############################################################################
@@ -108,5 +105,5 @@ run: fuse gen-vc build-sim
 ###############################################################################
 .PHONY: clean
 clean:
-	rm -rf build/*/lint-verilator/obj_dir \
-	       build/*/lint-verilator/*_patched.vc
+	rm -rf build/*/lint-verilator/obj_dir
+	rm -f build/*/lint-verilator/*_patched.vc
