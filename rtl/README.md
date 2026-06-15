@@ -139,3 +139,281 @@ the [credits file](CREDITS.md) and the commit history for more information.
  _27th International Symposium on Power and Timing Modeling, Optimization and Simulation
  (PATMOS 2017)_](https://doi.org/10.1109/PATMOS.2017.8106976)
 
+
+# CVE2 + Matmul8 Verilator Simulation Flow, June 15 Update [STEV]
+
+---
+
+# Tools Setup
+
+## Python Version Warning
+
+This flow relies on legacy FuseSoC / Edalize tooling used by CVE2.
+
+**Do not use Python 3.12 or newer.**
+
+Recommended versions:
+
+- Python 3.10
+- Python 3.11 (recommended)
+
+Known issues with newer Python versions:
+
+- Python 3.12 removes `distutils`
+- Older FuseSoC and CVE2 scripts may fail during setup
+- Tool requirement checks may fail before Verilator is invoked
+
+---
+
+## Create Python Virtual Environment
+
+Create and activate a dedicated virtual environment:
+
+```bash
+python3.11 -m venv venv_cve2
+source venv_cve2/bin/activate
+pip install --upgrade -r python-requirements.txt
+```
+
+Verify the environment:
+
+```bash
+which python
+which fusesoc
+python --version
+```
+
+Expected:
+
+```text
+venv_cve2/bin/python
+venv_cve2/bin/fusesoc
+Python 3.11.x
+```
+
+---
+
+## Required Tools
+
+The following tools must be available:
+
+- FuseSoC
+- Edalize
+- Verilator
+- Python packages from `python-requirements.txt`
+
+Check installation:
+
+```bash
+which fusesoc
+which verilator
+verilator --version
+```
+
+---
+
+# Overview
+
+This Makefile automates the process of generating a FuseSoC file list, patching the generated Verilator `.vc` file, and building a standalone CVE2 simulation executable with a custom matrix multiplication testbench.
+
+The flow consists of three stages:
+
+1. **FuseSoC Setup**
+   - Generates the Verilator file list (`.vc`)
+   - Resolves RTL dependencies
+   - Creates the build directory structure
+
+2. **VC File Patching**
+   - Creates a patched copy of the generated `.vc`
+   - Removes files that cause duplicate symbol and link issues
+   - Removes the `--lint-only` option so Verilator can generate a simulation executable
+
+3. **Simulation Build**
+   - Invokes Verilator using the patched `.vc`
+   - Compiles the custom C++ testbench
+   - Produces a runnable CVE2 simulator
+
+---
+
+# Build Directory Structure
+
+After FuseSoC setup, generated files are placed in:
+
+```text
+build/openhwgroup_cve2_cve2_top_0.1/lint-verilator/
+```
+
+Important generated files:
+
+```text
+openhwgroup_cve2_cve2_top_0.1.vc
+openhwgroup_cve2_cve2_top_0.1_patched.vc
+Vcve2_top
+obj_dir/
+```
+
+---
+
+# Makefile Targets
+
+## Generate FuseSoC Build Files
+
+Runs FuseSoC and generates the Verilator file list.
+
+```bash
+make -f sim.mk fuse
+```
+
+This generates:
+
+```text
+build/openhwgroup_cve2_cve2_top_0.1/lint-verilator/openhwgroup_cve2_cve2_top_0.1.vc
+```
+
+---
+
+## Patch the Generated VC File
+
+Creates a patched copy of the generated `.vc` file.
+
+```bash
+make -f sim.mk gen-vc
+```
+
+The patched file:
+
+```text
+openhwgroup_cve2_cve2_top_0.1_patched.vc
+```
+
+contains the same RTL file list with problematic entries removed.
+
+---
+
+## Build the Simulator
+
+Runs Verilator using the patched file list and compiles the custom testbench.
+
+```bash
+make -f sim.mk build-sim
+```
+
+This produces the simulation executable inside:
+
+```text
+build/openhwgroup_cve2_cve2_top_0.1/lint-verilator/
+```
+
+---
+
+## Run the Full Flow
+
+Executes all stages:
+
+```bash
+make -f sim.mk run
+```
+
+Equivalent to:
+
+```bash
+make -f sim.mk fuse
+make -f sim.mk gen-vc
+make -f sim.mk build-sim
+```
+
+---
+
+## Clean Generated Files
+
+Removes generated simulation artifacts and patched file lists.
+
+```bash
+make -f sim.mk clean
+```
+
+---
+
+# VC File Modifications
+
+The patch step removes:
+
+```text
+--lint-only
+
+dpi_memutil.cc
+ecc32_mem_area.cc
+mem_area.cc
+sv_scoped.cc
+scrambled_ecc32_mem_area.cc
+```
+
+These entries are removed because they are not required by the standalone matrix multiplication testbench flow and can cause build or link conflicts.
+
+---
+
+# Testbench Location
+
+The simulation uses:
+
+```text
+sw/tb/matrix_tb/min_tb_matmul8.cpp
+```
+
+as the top-level C++ testbench.
+
+---
+
+# Typical Workflow
+
+Activate the environment:
+
+```bash
+source venv_cve2/bin/activate
+```
+
+Run the complete flow:
+
+```bash
+make -f sim.mk run
+```
+
+The process first generates the FuseSoC file list, patches the generated `.vc`, and finally builds the Verilator simulator using the custom matrix multiplication testbench.
+
+---
+
+# Output
+
+Successful completion produces:
+
+```text
+build/openhwgroup_cve2_cve2_top_0.1/lint-verilator/obj_dir/
+```
+
+containing the generated Verilator model and executable simulation binary.
+
+---
+
+# Example Commands
+
+## Generate Verilator File List Using FuseSoC
+
+```bash
+VERILATOR_OPTIONS="-Wno-fatal" \
+fusesoc --cores-root=. run --target=lint --tool=verilator --setup \
+  openhwgroup:cve2:cve2_top:0.1 \
+  $(./util/cve2_config.py small fusesoc_opts)
+```
+
+---
+
+## Build Simulator Using Verilator
+
+```bash
+verilator -f openhwgroup_cve2_cve2_top_0.1.vc \
+  -Wall -Wno-fatal \
+  --cc --exe --build \
+  --top-module cve2_top \
+  -LDFLAGS "-lelf" \
+  ../../../../sw/tb/matrix_tb/min_tb_matmul8.cpp
+```
