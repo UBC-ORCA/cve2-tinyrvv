@@ -183,7 +183,24 @@ module cve2_id_stage #(
   input  logic        vec_done_i,
   input  logic        vec_scalar_we_i,
   input  logic [4:0]  vec_scalar_waddr_i,
-  input  logic [31:0] vec_scalar_wdata_i
+  input  logic [31:0] vec_scalar_wdata_i,
+
+// --- [stev] ---
+  // Custom MAC (CF) unit interface
+  output logic                     cf_req_valid_o,
+  output cve2_pkg::mac_op_e        cf_req_op_o, //output logic [3:0] cf_op_o
+  output logic [31:0]              cf_req_instr_o,
+  output logic [31:0]              cf_req_rs1_o,
+  output logic [31:0]              cf_req_rs2_o,
+  input  logic                     cf_req_ready_i,
+
+  input  logic                     cf_busy_i,
+  input  logic                     cf_done_i,
+
+  input  logic                     cf_scalar_we_i,
+  input  logic [4:0]               cf_scalar_waddr_i,
+  input  logic [31:0]              cf_scalar_wdata_i
+// --- [end] ---
 
 );
 
@@ -220,6 +237,11 @@ module cve2_id_stage #(
   logic        stall_id;
   logic        flush_id;
   logic        multicycle_done;
+
+// --- [stev] ---
+logic stall_mac;
+logic cf_scalar_we_safe;
+// --- [end] ---
 
   // Immediate decoding and sign extension
   logic [31:0] imm_i_type;
@@ -284,6 +306,13 @@ module cve2_id_stage #(
   // CV-X-IF
   logic stall_coproc;
   logic scoreboard_busy;
+
+// --- [stev] ---
+logic                  cf_insn_dec;
+cve2_pkg::mac_op_e     cf_op_dec;
+
+// --- [end] ---
+
 
   ///////////////
   // ID-EX FSM //
@@ -381,7 +410,9 @@ module cve2_id_stage #(
     //   end
     // end
 
-    assign multicycle_done = vec_insn_dec ? vec_done_i : (lsu_req_dec ? lsu_resp_valid_i : (illegal_insn_dec ? coproc_done : ex_valid_i));
+// --- [stev] ---
+    assign multicycle_done = cf_insn_dec ? cf_done_i : (vec_insn_dec ? vec_done_i : (lsu_req_dec ? lsu_resp_valid_i : (illegal_insn_dec ? coproc_done : ex_valid_i)));
+// --- [end] ---
 
     // Issue Interface
     assign x_issue_valid_o      = instr_executing & illegal_insn_dec & (id_fsm_q == FIRST_CYCLE) & scoreboard_free;
@@ -415,7 +446,10 @@ module cve2_id_stage #(
 
     assign unused_coproc_done = coproc_done;
 
-    assign multicycle_done = vec_insn_dec ? vec_done_i : (lsu_req_dec ? lsu_resp_valid_i : ex_valid_i);
+// --- [stev] ---
+    assign multicycle_done = cf_insn_dec ? cf_done_i : (vec_insn_dec ? vec_done_i : (lsu_req_dec ? lsu_resp_valid_i : ex_valid_i));
+// --- [end] ---
+
     assign scoreboard_busy = 1'b0;
 
     // Issue Interface
@@ -528,8 +562,15 @@ module cve2_id_stage #(
   assign rf_we_scalar      = rf_we_raw & instr_executing & ~illegal_csr_insn_i;
   assign vec_scalar_we_safe = vec_scalar_we_i & vec_done_i;
 
+// --- [stev] ---
+  assign cf_scalar_we_safe = cf_scalar_we_i & cf_done_i;
+
+
+
   assign rf_waddr_id_o =
-      vec_scalar_we_safe ? vec_scalar_waddr_i : rf_waddr_dec;
+     cf_scalar_we_safe ? cf_scalar_waddr_i : (vec_scalar_we_safe ? vec_scalar_waddr_i : rf_waddr_dec);
+
+// --- [end] ---
 
   assign rf_we_id_o =
       rf_we_scalar | vec_scalar_we_safe;
@@ -563,7 +604,13 @@ module cve2_id_stage #(
       default:      rf_wdata_id_o = result_ex_i;
     endcase
 
-    if (vec_scalar_we_safe) begin
+// --- [stev] ---
+    if (cf_scalar_we_safe) begin
+      rf_wdata_id_o = cf_scalar_wdata_i;
+    end
+// --- [end] ---
+
+    else if (vec_scalar_we_safe) begin
       rf_wdata_id_o = vec_scalar_wdata_i;
     end
   end
@@ -591,6 +638,11 @@ module cve2_id_stage #(
     .jump_set_o    (jump_set_dec),
     .vec_insn_o      (vec_insn_dec),
     .vec_vset_o      (vec_vset_dec),
+
+// --- [stev] ---
+.cf_insn_o (cf_insn_dec),
+.cf_op_o   (cf_op_dec),
+// --- [end] ---
 
     // from IF-ID pipeline register
     .instr_first_cycle_i(instr_first_cycle),
@@ -650,6 +702,20 @@ module cve2_id_stage #(
     .jump_in_dec_o  (jump_in_dec),
     .branch_in_dec_o(branch_in_dec)
   );
+
+// --- [stev] ---
+assign cf_req_valid_o =
+    instr_valid_i &&
+    instr_first_cycle &&
+    cf_insn_dec &&
+    controller_run &&
+    !flush_id;
+
+assign cf_req_op_o    = cf_op_dec;
+assign cf_req_instr_o = instr_rdata_i;
+assign cf_req_rs1_o   = rf_rdata_a_fwd;
+assign cf_req_rs2_o   = rf_rdata_b_fwd;
+// --- [end] ---
 
   /////////////////////////////////
   // CSR-related pipeline flushes //
@@ -881,7 +947,7 @@ module cve2_id_stage #(
                 id_fsm_d    = MULTI_CYCLE;
               end
             end
-            vec_insn_dec: begin
+            (vec_insn_dec || cf_insc_dec): begin
               // Vector operation (handled by vector unit, always multi-cycle)
               id_fsm_d  = MULTI_CYCLE;
               rf_we_raw = 1'b0;
@@ -985,8 +1051,11 @@ module cve2_id_stage #(
 
   // Stall ID/EX stage for reason that relates to instruction in ID/EX, update assertion below if
   // modifying this.
-  assign stall_id = stall_mem | stall_multdiv | stall_vec | stall_jump | stall_branch |
+
+// --- [stev] ---
+  assign stall_id = stall_mem | stall_multdiv | stall_vec | stall_mac | stall_jump | stall_branch |
                       stall_alu | (XInterface & stall_coproc);
+// --- [end] ---
 
   // Generally illegal instructions have no reason to stall, however they must still stall waiting
   // for outstanding memory requests so exceptions related to them take priority over the illegal
@@ -1010,6 +1079,11 @@ module cve2_id_stage #(
   assign stall_mem = instr_valid_i & (lsu_req_dec & (~lsu_resp_valid_i | instr_first_cycle));
   // Vector unit stall (multi-cycle vector ops)
   assign stall_vec = (vec_busy_i && !vec_done_i) | (instr_valid_i && instr_first_cycle && vec_insn_dec && !vec_req_ready_i);
+
+// --- [stev] ---
+assign stall_mac = (cf_busy_i && !cf_done_i) | (instr_valid_i && instr_first_cycle && cf_insn_dec && !cf_req_ready_i);
+
+// --- [end] ---
 
   // Without writeback stage any valid instruction that hasn't seen an error will execute
   assign instr_executing_spec = instr_valid_i & ~instr_fetch_err_i & controller_run;
