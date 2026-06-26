@@ -35,6 +35,13 @@ module cve2_decoder #(
 
   output logic                 vec_insn_o,           // recognized vector instruction (handled by vec unit)
   output logic                 vec_vset_o,           // vset* instruction (writes rd with vl)
+
+// --- [stev] ---
+output logic       cf_insn_o,
+output logic [3:0] cf_op_o, //for cfu mac
+// --- [end] ---
+
+
   // from IF-ID pipeline register
   input  logic                 instr_first_cycle_i,   // instruction read is in its first cycle
   input  logic [31:0]          instr_rdata_i,         // instruction read from memory/cache
@@ -116,6 +123,17 @@ module cve2_decoder #(
   logic [4:0] instr_rd;
   logic [2:0] vec_funct3;
   logic [5:0] vec_funct6;
+
+// --- [stev] ---
+  logic [2:0] cf_funct3;
+  logic [6:0] cf_funct7;
+  logic [4:0] cf_custom;
+
+  assign cf_funct3 = instr[14:12];
+  assign cf_funct7 = instr[31:25];
+  assign cf_custom = instr[11:7];
+
+// --- [end] ---
 
   logic        use_rs3_d;
   logic        use_rs3_q;
@@ -1251,15 +1269,117 @@ module cve2_decoder #(
 
   assign vec_insn_o = vec_insn;
   assign vec_vset_o = vec_vset;
-  assign illegal_insn_o =
-      (((illegal_insn | illegal_reg_rv32e) & ~vec_insn)) |
-      (vec_vset && !vec_vtype_ok);
+ // assign illegal_insn_o =
+   //   (((illegal_insn | illegal_reg_rv32e) & ~vec_insn)) |
+    //  (vec_vset && !vec_vtype_ok);
 
   // do not propgate regfile write enable if non-available registers are accessed in RV32E
   assign rf_we_o = rf_we & ~illegal_reg_rv32e;
 
   // Not all bits are used
   assign unused_instr_alu = {instr_alu[19:15],instr_alu[11:7]};
+
+// --- [stev] ---
+
+  logic cf_type_ok;
+  logic cf_insn;
+  //logic [3:0] cf_op;
+
+cve2_pkg::mac_op_e cf_op;
+
+
+  //logic [2:0] cf_funct3;
+  //logic [6:0] cf_funct7;
+  //logic [4:0] cf_custom;
+  localparam logic [6:0] CF_OPC_OPV     = 7'b1011011; //custom-2
+  localparam logic [6:0] CF_FUNCT7_ZZMAC64  = 7'h0;
+  localparam logic [6:0] CF_FUNCT7_MAXMAC64  = 7'h01;
+  localparam logic [6:0] CF_FUNCT7_HWMAC64  = 7'h02;
+  localparam logic [6:0] CF_FUNCT7_ADDMAC64  = 7'h03;
+  localparam logic [6:0] CF_FUNCT7_MVOMAC64  = 7'h04;
+  localparam logic [6:0] CF_FUNCT7_MVEMAC64  = 7'h05;
+  localparam logic [6:0] CF_FUNCT7_MV2MAC64  = 7'h06;
+  localparam logic [6:0] CF_FUNCT7_LDMAC64  = 7'h07;
+  localparam logic [6:0] CF_FUNCT7_ST2MAC64  = 7'h08;
+
+always_comb begin
+
+    cf_insn     = 1'b0;
+    cf_type_ok = 1'b1;
+    cf_op = cve2_pkg::OP_NONE;
+
+if (opcode == CF_OPC_OPV) begin
+    unique case (cf_funct7)
+
+        CF_FUNCT7_ZZMAC64 : begin 
+		cf_op = cve2_pkg::OP_ZZ;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_MAXMAC64 : begin 
+		cf_op = cve2_pkg::OP_MAX;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_HWMAC64 : begin 
+		cf_op = cve2_pkg::OP_MAC;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_ADDMAC64 : begin 
+		cf_op = cve2_pkg::OP_ADD;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_MVOMAC64 : begin 
+		cf_op = cve2_pkg::OP_MVO;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_MVEMAC64 : begin 
+		cf_op = cve2_pkg::OP_MVE;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_MV2MAC64 : begin 
+		cf_op = cve2_pkg::OP_MV2;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_LDMAC64 : begin 
+		cf_op = cve2_pkg::OP_LD2;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_ST2MAC64 : begin 
+		cf_op = cve2_pkg::OP_ST2;
+		cf_insn = 1'b1;
+
+	end
+	default: begin
+    		cf_type_ok = 1'b0;
+
+	end
+
+    endcase
+end
+
+end
+
+assign cf_insn_o = cf_insn;
+assign cf_op_o   = cf_op;
+
+assign illegal_insn_o =
+    (((illegal_insn | illegal_reg_rv32e) &
+      ~vec_insn &
+      ~cf_insn)) |
+    (vec_vset && !vec_vtype_ok);
+
+//need to pass the cf_insn to out of the decoder
+// need to use the cf signals for the other signals
+
+// --- [end] ---
+
 
   ////////////////
   // Assertions //
