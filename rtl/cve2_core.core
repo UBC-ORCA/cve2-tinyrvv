@@ -29,6 +29,8 @@ filesets:
       - rtl/cve2_multdiv_fast.sv
       - rtl/cve2_multdiv_slow.sv
       - rtl/cve2_prefetch_buffer.sv
+      - rtl/fp4_mac8x8_gen1.sv
+      - rtl/cve2_cf_unit.sv
       - rtl/cve2_vec_regfile.sv
       - rtl/cve2_vec_unit.sv
       - rtl/cve2_pmp.sv
