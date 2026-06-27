@@ -1,3 +1,4 @@
+
 #include <stdint.h>
 
 extern void putchar_uart(char c);
@@ -12,11 +13,7 @@ static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF000
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
 static volatile uint32_t *const COMP_END_MMIO   = (volatile uint32_t *)0xFFFF0008u;
 
-/*
- * Volatile is used for the same reason as in the scalar benchmark: these arrays
- * are preloaded by the testbench, not initialized by ordinary C code. Keeping
- * them volatile prevents the compiler from treating them as compile-time zeros.
- */
+
 static volatile uint32_t mat_a[MAT_N * MAT_N]
     __attribute__((section(".mat_a"), used));
 static volatile uint32_t mat_b[MAT_N * MAT_N]
@@ -34,6 +31,13 @@ static void print_u32_hex(uint32_t x) {
 static void print_str(const char *s) {
   while (*s) putchar_uart(*s++);
 }
+
+
+
+
+
+
+/*
 
 int main(void) {
   *COMP_START_MMIO = 1u;
@@ -61,3 +65,81 @@ int main(void) {
 
   return 0;
 }
+
+*/
+
+
+
+extern void mac_zz(void);
+extern void mac_hw(void);
+extern uint32_t mac_out(void);
+
+int main(void)
+{
+
+  *COMP_START_MMIO = 1u;
+
+    mac_zz();
+    //mac_hw();
+
+  *COMP_END_MMIO = 1u;
+
+    //uint32_t x = mac_out();
+  *DONE_MMIO = 1;
+  while (1) {}
+}
+
+/*
+#define CUSTOM2 0x7b
+#define MAC_ZZ  0x00
+#define MAC_HW  0x02
+#define MAC_MVO 0x04
+
+#define MAC_INS(f7) ((CUSTOM2) | ((f7) << 25))
+
+static inline void mac_zz(void) {
+  asm volatile(".word %0" :: "i"(MAC_INS(MAC_ZZ)));
+}
+
+static inline void mac_hw(void) {
+  asm volatile(".word %0" :: "i"(MAC_INS(MAC_HW)));
+}
+
+static inline uint32_t mac_out(void) {
+  uint32_t v;
+  asm volatile(
+    ".word %1\n"
+    "mv %0, x10"
+    : "=r"(v)
+    : "i"(MAC_INS(MAC_MVO))
+    : "x10"
+  );
+  return v;
+}
+
+int main() {
+  *COMP_START_MMIO = 1u;
+
+
+
+
+  mac_zz();   // reset tile
+
+  // deterministic accumulation test
+  //mac_hw();
+ // mac_hw();
+  //mac_hw();
+
+  *COMP_END_MMIO = 1u;
+
+
+
+  //uint32_t result = mac_out();
+
+  *DONE_MMIO = result;
+  *DONE_MMIO = 1;
+  while (1) {}
+}
+*/
+
+

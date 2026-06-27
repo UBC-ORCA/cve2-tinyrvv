@@ -31,6 +31,36 @@
 #define RVV_OPIVX(f6, vd, rs1, vs2) \
   .word (((f6) << 26) | (1 << 25) | ((vs2) << 20) | ((rs1) << 15) | (F3_OPIVX << 12) | ((vd) << 7) | OPV)
 
+//[stev]
+#define CUSTOM2 0x5b
+
+#define ZZMAC64 \
+.word (((0x00)<<25) | (0<<20) | (0<<15) | (0<<12) | (0<<7) | CUSTOM2)
+
+#define HWMAC64(rs1,rs2) \
+.word (((0x02)<<25) | ((rs2)<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
+
+#define MVOMAC64(rd) \
+.word (((0x04)<<25) | (0<<20) | (0<<15) | (0<<12) | ((rd)<<7) | CUSTOM2)
+
+.globl mac_zz
+mac_zz:
+    ZZMAC64
+    ret
+
+.globl mac_hw
+mac_hw:
+    HWMAC64(10,11)
+    ret
+
+.globl mac_out
+mac_out:
+    MVOMAC64(10)
+    ret
+
+//[end]
+
+
 /*
  * matmul8_vec(a=a0, b=a1, c=a2, tmp=a3)
  *
