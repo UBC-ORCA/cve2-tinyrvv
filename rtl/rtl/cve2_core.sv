@@ -201,6 +201,21 @@ module cve2_core import cve2_pkg::*; #(
   logic [4:0]  vec_scalar_waddr;
   logic [31:0] vec_scalar_wdata;
 
+// --- [stev] ---
+  logic        cf_req_valid; //mac
+cve2_pkg::mac_op_e cf_req_op_int;
+  logic        cf_req_ready;
+  logic [31:0] cf_req_instr;
+  logic [31:0] cf_req_rs1;
+  logic [31:0] cf_req_rs2;
+  logic        cf_busy;
+  logic        cf_done;
+  logic        cf_scalar_we;
+  logic [4:0]  cf_scalar_waddr;
+  logic [31:0] cf_scalar_wdata;
+
+// --- [end] ---
+
   // Vector data bus (arbitrated against scalar LSU)
   logic        vec_data_req;
   logic        vec_data_we;
@@ -211,6 +226,19 @@ module cve2_core import cve2_pkg::*; #(
   logic        vec_data_rvalid;
   logic [31:0] vec_data_rdata;
   logic        vec_data_err;
+
+// --- [stev] ---
+  logic        cf_data_req;
+  logic        cf_data_we;
+  logic [31:0] cf_data_addr;
+  logic [31:0] cf_data_wdata;
+  logic [3:0]  cf_data_be;
+  logic        cf_data_gnt; //mac
+  logic        cf_data_rvalid;
+  logic [31:0] cf_data_rdata;
+  logic        cf_data_err;
+
+// --- [end] ---
 
   // Scalar LSU data bus (internal)
   logic        data_req_lsu;
@@ -596,7 +624,25 @@ module cve2_core import cve2_pkg::*; #(
     // setting this to 0 to confirm suspicion
     // .vec_scalar_we_i      (1'b0),
     .vec_scalar_waddr_i   (vec_scalar_waddr),
-    .vec_scalar_wdata_i   (vec_scalar_wdata)
+    .vec_scalar_wdata_i   (vec_scalar_wdata),
+
+// --- [stev] ---
+    .cf_req_valid_o(cf_req_valid),
+    .cf_req_op_o(cf_req_op_int), //output logic [3:0] cf_op_o
+    .cf_req_instr_o(cf_req_instr),
+    .cf_req_rs1_o(cf_req_rs1),
+    .cf_req_rs2_o(cf_req_rs2),
+    .cf_req_ready_i(cf_req_ready),
+
+    .cf_busy_i(cf_busy),
+    .cf_done_i(cf_done),
+
+    .cf_scalar_we_i(cf_scalar_we),
+    .cf_scalar_waddr_i(cf_scalar_waddr),
+    .cf_scalar_wdata_i(cf_scalar_wdata)
+
+// --- [end] ---
+
   );
 
   // for RVFI only
@@ -742,12 +788,16 @@ module cve2_core import cve2_pkg::*; #(
   // - Otherwise, the scalar LSU owns the data bus (with optional PMP gating).
   wire sel_vec_data = vec_busy;
 
+// --- [stev] ---
+  wire sel_cf_data = cf_busy;
+
   // External data bus drive
-  assign data_req_o   = sel_vec_data ? vec_data_req : (data_req_lsu & ~pmp_req_err[PMP_D]);
-  assign data_addr_o  = sel_vec_data ? vec_data_addr : data_addr_lsu;
-  assign data_we_o    = sel_vec_data ? vec_data_we : data_we_lsu;
-  assign data_be_o    = sel_vec_data ? vec_data_be : data_be_lsu;
-  assign data_wdata_o = sel_vec_data ? vec_data_wdata : data_wdata_lsu;
+  assign data_req_o   = sel_cf_data ? cf_data_req : (sel_vec_data ? vec_data_req : (data_req_lsu & ~pmp_req_err[PMP_D]));
+  assign data_addr_o  = sel_cf_data ? cf_data_addr : (sel_vec_data ? vec_data_addr : data_addr_lsu);
+  assign data_we_o    = sel_cf_data ? cf_data_we : (sel_vec_data ? vec_data_we : data_we_lsu);
+  assign data_be_o    = sel_cf_data ? cf_data_be : (sel_vec_data ? vec_data_be : data_be_lsu);
+  assign data_wdata_o = sel_cf_data ? cf_data_wdata : (sel_vec_data ? vec_data_wdata : data_wdata_lsu);
+// --- [end] ---
 
   // Feed responses back only to the selected master
   assign data_gnt_lsu     = data_gnt_i    & ~sel_vec_data;
@@ -760,7 +810,58 @@ module cve2_core import cve2_pkg::*; #(
   assign vec_data_err     = data_err_i    & sel_vec_data;
   assign vec_data_rdata   = data_rdata_i;
 
+// --- [stev] ---
+  assign cf_data_gnt     = data_gnt_i    & sel_cf_data;
+  assign cf_data_rvalid  = data_rvalid_i & sel_cf_data;
+  assign cf_data_err     = data_err_i    & sel_cf_data;
+  assign cf_data_rdata   = data_rdata_i;
+
+// --- [end] ---
+
   assign lsu_resp_err = lsu_load_err | lsu_store_err;
+
+// --- [stev] ---
+  // mac
+  cve2_cf_unit cf_unit_i (
+    .clk_i       (clk_i),
+    .rst_ni      (rst_ni),
+
+    .req_valid_i (cf_req_valid),
+    .req_instr_i (cf_req_instr),
+    .req_rs1_i   (cf_req_rs1),
+    .req_rs2_i   (cf_req_rs2),
+    .req_ready_o (cf_req_ready),
+
+    .busy_o      (cf_busy),
+    .done_o      (cf_done),
+
+    .scalar_we_o    (cf_scalar_we),
+    .scalar_waddr_o (cf_scalar_waddr),
+    .scalar_wdata_o (cf_scalar_wdata),
+
+    .data_req_o    (cf_data_req),
+    .data_gnt_i    (cf_data_gnt),
+    .data_addr_o   (cf_data_addr),
+    .data_we_o     (cf_data_we),
+    .data_be_o     (cf_data_be),
+    .data_wdata_o  (cf_data_wdata),
+    .data_rdata_i  (cf_data_rdata),
+    .data_rvalid_i (cf_data_rvalid),
+    .data_err_i    (cf_data_err),
+
+// some unused signals here
+    //.ex_req_o       (cf_ex_req),
+    //.ex_is_mul_o    (cf_ex_is_mul),
+    //.ex_alu_op_o    (cf_ex_alu_op),
+    //.ex_operand_a_o (cf_ex_operand_a),
+    //.ex_operand_b_o (cf_ex_operand_b),
+    //.ex_result_i    (cf_result_ex),
+    //.ex_valid_i     (cf_ex_valid),
+	.cf_req_op_i(cf_req_op_int)
+  );
+
+
+// --- [end] ---
 
   // RVV-Lite vector unit (minimal subset)
   cve2_vec_unit vec_unit_i (
