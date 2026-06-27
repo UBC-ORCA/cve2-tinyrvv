@@ -458,9 +458,9 @@ module cve2_cf_unit (
     //======================================================================
 
     assign scalar_we_o =
-           (cf_req_op_i == MAC_MVE) ||
-           (cf_req_op_i == MAC_MVO) ||
-           (cf_req_op_i == MAC_MV2);
+           (cf_req_op_i == cve2_pkg::OP_MVE) ||
+           (cf_req_op_i == cve2_pkg::OP_MVO) ||
+           (cf_req_op_i == cve2_pkg::OP_MV2);
 
     //
     // Destination register comes directly from the original instruction.
@@ -490,14 +490,14 @@ module cve2_cf_unit (
     // Generate an LSU request only for tile load/store instructions.
     //
     assign data_req_o =
-           (cf_req_op_i == MAC_LD2) ||
-           (cf_req_op_i == MAC_ST2);
+           (cf_req_op_i == cve2_pkg::OP_LD2) ||
+           (cf_req_op_i == cve2_pkg::OP_ST2);
 
     //
     // st2MAC64 performs a memory write.
     //
     assign data_we_o =
-           (cf_req_op_i == MAC_ST2);
+           (cf_req_op_i == cve2_pkg::OP_ST2);
 
     //
     // Base address.
