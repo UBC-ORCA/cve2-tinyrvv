@@ -463,6 +463,12 @@ end else if (st2_en_i) begin
 
 
 	end else if (add_en_i) begin
+
+    $display("addMAC64 triggered ...");
+// --- [stev] ---
+dump_next <= 1'b1;
+// --- [end] ---
+
     	// ----------------------------------------------------
     	// addMAC64 rs1, rs2
     	//

@@ -60,6 +60,9 @@
 .word (((0x01)<<25) | (0<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
 
 
+#define ADDMAC64(row, rs2) \
+.word (((0x03)<<25) | ((rs2)<<20) | ((row)<<15) | (0<<12) | (0<<7) | CUSTOM2)
+
 .globl mac_zz
 mac_zz:
     ZZMAC64
@@ -89,6 +92,11 @@ mac_out_pair:
 .globl mac_max
 mac_max:
     MAXMAC64(10)      # uses a0 (x10)
+    ret
+
+.globl mac_add_row
+mac_add_row:
+    ADDMAC64(3, 10)   # row=3, value in a0
     ret
 
 //[end]
