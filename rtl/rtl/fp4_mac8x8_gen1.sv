@@ -141,6 +141,10 @@ module fp4_mac8x8_gen1 (
      **************************************************************************/
     logic signed [15:0] T [0:7][0:7];
 
+// --- [stev] ---
+logic dump_next; //quick debug flag
+// --- [end] ---
+
     /**************************************************************************
      * UNPACKED FP4 NIBBLES
      *
@@ -376,6 +380,10 @@ end
                     T[i][j] <= '0;
                 end
             end
+// --- [stev] ---
+dump_next <= 0; //quick debug flag
+// --- [end] ---
+
         end else if (clear_i) begin //[inst] - zzMAC64 
             // Synchronous clear also zeros the entire tile.
             for (i = 0; i < 8; i++) begin
@@ -383,6 +391,10 @@ end
                     T[i][j] <= '0;
                 end
             end
+
+// --- [stev] ---
+dump_next <= 1'b1;
+// --- [end] ---
 	
 	end else if (max_en_i) begin
             // ----------------------------------------------------
@@ -470,6 +482,21 @@ end else if (st2_en_i) begin
                 end
             end
         end
+
+// --- [stev] ---
+if (dump_next) begin
+    dump_next <= 1'b0;
+    $display("AFTER CLEAR");
+for (i = 0; i < 8; i++) begin
+        for (j = 0; j < 8; j++) begin
+          $write("%0d ", T[i][j]);
+        end
+        $write("\n");
+      end
+
+  end
+// --- [end] ---
+
     end
 
     /**************************************************************************
@@ -513,5 +540,7 @@ end else if (st2_en_i) begin
             rd_data_o = {T[row][col1], T[row][col0]};
         end
     end
+
+
 
 endmodule
