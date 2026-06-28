@@ -386,6 +386,8 @@ dump_next <= 0; //quick debug flag
 
         end else if (clear_i) begin //[inst] - zzMAC64 
             // Synchronous clear also zeros the entire tile.
+    $display("zzMAC64 triggered ...");
+
             for (i = 0; i < 8; i++) begin
                 for (j = 0; j < 8; j++) begin
                     T[i][j] <= '0;
@@ -476,6 +478,12 @@ end else if (st2_en_i) begin
             //
             // So the result is:
             //   T[row][col] += A_q[row] * B_q[col]
+    $display("hwMAC64 triggered ...");
+// --- [stev] ---
+dump_next <= 1'b1;
+// --- [end] ---
+
+
             for (i = 0; i < 8; i++) begin //[inst] - hwMAC64 rs1, rs2
                 for (j = 0; j < 8; j++) begin
                     T[i][j] <= T[i][j] + (a_q[i] * b_q[j]);
@@ -486,7 +494,7 @@ end else if (st2_en_i) begin
 // --- [stev] ---
 if (dump_next) begin
     dump_next <= 1'b0;
-    $display("AFTER CLEAR");
+    $display("AFTER MAC INST");
 for (i = 0; i < 8; i++) begin
         for (j = 0; j < 8; j++) begin
           $write("%0d ", T[i][j]);

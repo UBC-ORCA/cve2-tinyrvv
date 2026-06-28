@@ -71,16 +71,21 @@ int main(void) {
 
 
 extern void mac_zz(void);
-extern void mac_hw(void);
+//extern void mac_hw(void);
+extern void mac_hw(uint32_t a, uint32_t b);
 extern uint32_t mac_out(void);
 
 int main(void)
 {
 
+uint32_t a = 0x01234567;
+uint32_t b = 0x76543210;
+
   *COMP_START_MMIO = 1u;
 
-    mac_zz();
-    //mac_hw();
+    //mac_zz(); //[stev] - looks good
+    
+	mac_hw(a, b); //[stev] - looks good
 
   *COMP_END_MMIO = 1u;
 
