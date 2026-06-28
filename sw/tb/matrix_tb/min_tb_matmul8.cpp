@@ -237,6 +237,10 @@ int main(int argc, char** argv) {
   bool trace_if = false;
   bool trace_d = false;
 
+// --- [stev] ---
+  bool trace_cf = false;
+// --- [end] ---
+
   for (int i = 2; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--max-cycles" && (i + 1) < argc) {
@@ -245,7 +249,13 @@ int main(int argc, char** argv) {
       print_every = std::stoull(argv[++i]);
     } else if (a == "--trace-if") {
       trace_if = true;
-    } else if (a == "--trace-d") {
+// --- [stev] ---
+} else if (a == "--trace-cf") {
+      trace_cf = true;
+    } 
+// --- [end] ---
+
+else if (a == "--trace-d") {
       trace_d = true;
     } else {
       std::cerr << "Unknown arg: " << a << "\n";
@@ -313,6 +323,22 @@ int main(int argc, char** argv) {
       if (trace_if) {
         std::printf("[IF] resp pc=0x%08x insn=0x%08x\n", prev_instr_addr, (uint32_t)dut->instr_rdata_i);
       }
+
+// --- [stev] ---
+if (trace_cf) {
+  uint32_t insn = (uint32_t)dut->instr_rdata_i;
+  bool is_cf = ((insn & 0x7f) == 0x5b);
+
+if (is_cf){
+  std::printf("[CF] resp pc=0x%08x insn=0x%08x%s\n",
+              prev_instr_addr,
+              insn,
+              is_cf ? "  <-- CF" : "");
+}
+}
+
+// --- [end] ---
+
       prev_instr_pending = false;
     }
 
@@ -358,6 +384,13 @@ int main(int argc, char** argv) {
       prev_instr_pending = true;
       prev_instr_addr = (uint32_t)dut->instr_addr_o;
       if (trace_if) std::printf("[IF] accept pc=0x%08x\n", prev_instr_addr);
+
+// --- [stev] ---
+
+
+// --- [end] ---
+
+
     }
 
     if (dut->data_req_o && !prev_data_pending) {
