@@ -71,9 +71,12 @@ int main(void) {
 
 
 extern void mac_zz(void);
-//extern void mac_hw(void);
 extern void mac_hw(uint32_t a, uint32_t b);
-extern uint32_t mac_out(void);
+extern uint32_t mac_out_even(void);
+extern uint32_t mac_out_odd(void);
+extern uint32_t mac_out_pair(void);
+extern void mac_max(int16_t threshold);
+
 
 int main(void)
 {
@@ -86,11 +89,15 @@ uint32_t b = 0x76543210;
     //mac_zz(); //[stev] - looks good
     
 	mac_hw(a, b); //[stev] - looks good
+//uint32_t chk = mac_out_pair(); //[stev] - not good
+//uint32_t chk = mac_out_even(); //[stev] - not good
+//uint32_t chk = mac_out_odd(); //[stev] - not good
+mac_max(96); //[stev] - looks good
+
 
   *COMP_END_MMIO = 1u;
 
-    //uint32_t x = mac_out();
-  *DONE_MMIO = 1;
+  *DONE_MMIO = 0x22;
   while (1) {}
 }
 

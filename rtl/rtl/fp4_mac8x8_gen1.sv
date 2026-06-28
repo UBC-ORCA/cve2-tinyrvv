@@ -399,6 +399,12 @@ dump_next <= 1'b1;
 // --- [end] ---
 	
 	end else if (max_en_i) begin
+
+    $display("maxMAC64 triggered ...");
+// --- [stev] ---
+dump_next <= 1'b1;
+// --- [end] ---
+
             // ----------------------------------------------------
             // maxMAC64:
             // T[i][j] = max(T[i][j], scalar)

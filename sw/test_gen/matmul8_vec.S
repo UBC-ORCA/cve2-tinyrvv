@@ -40,8 +40,25 @@
 #define HWMAC64(rs1,rs2) \
 .word (((0x02)<<25) | ((rs2)<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
 
-#define MVOMAC64(rd) \
-.word (((0x04)<<25) | (0<<20) | (0<<15) | (0<<12) | ((rd)<<7) | CUSTOM2)
+// -----------------------------------------------------------------------------
+// Tile move instructions
+// rs1 = row specifier (instruction field)
+// rs2 = pair specifier (instruction field)
+// rd  = integer destination register
+// -----------------------------------------------------------------------------
+
+#define MVEMAC64(rd,row,pair) \
+.word (((0x05)<<25) | ((pair)<<20) | ((row)<<15) | (0<<12) | ((rd)<<7) | CUSTOM2)
+
+#define MVOMAC64(rd,row,pair) \
+.word (((0x04)<<25) | ((pair)<<20) | ((row)<<15) | (0<<12) | ((rd)<<7) | CUSTOM2)
+
+#define MV2MAC64(rd,row,pair) \
+.word (((0x06)<<25) | ((pair)<<20) | ((row)<<15) | (0<<12) | ((rd)<<7) | CUSTOM2)
+
+#define MAXMAC64(rs1) \
+.word (((0x01)<<25) | (0<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
+
 
 .globl mac_zz
 mac_zz:
@@ -53,9 +70,25 @@ mac_hw:
     HWMAC64(10,11)
     ret
 
-.globl mac_out
-mac_out:
-    MVOMAC64(10)
+.globl mac_out_even
+mac_out_even:
+    MVEMAC64(10,0,0)      # returns T[0][0] in a0
+    ret
+
+.globl mac_out_odd
+mac_out_odd:
+    MVOMAC64(10,0,0)      # returns T[0][1] in a0
+    ret
+
+.globl mac_out_pair
+mac_out_pair:
+    MV2MAC64(10,0,0)      # returns {T[0][1],T[0][0]} in a0
+    ret
+
+
+.globl mac_max
+mac_max:
+    MAXMAC64(10)      # uses a0 (x10)
     ret
 
 //[end]
