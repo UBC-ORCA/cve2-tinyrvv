@@ -570,10 +570,12 @@ cve2_pkg::mac_op_e     cf_op_dec;
   assign rf_waddr_id_o =
      cf_scalar_we_safe ? cf_scalar_waddr_i : (vec_scalar_we_safe ? vec_scalar_waddr_i : rf_waddr_dec);
 
-// --- [end] ---
+
 
   assign rf_we_id_o =
-      rf_we_scalar | vec_scalar_we_safe;
+      rf_we_scalar | vec_scalar_we_safe | cf_scalar_we_safe;
+
+// --- [end] ---
 
   // always_ff @(posedge clk_i) begin
   //   if (rf_we_id_o) begin
