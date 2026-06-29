@@ -78,11 +78,16 @@ extern uint32_t mac_out_pair(void);
 extern void mac_max(int16_t threshold);
 extern void mac_add_row(uint32_t value);
 
+extern void mac_ld2(void *base);
+extern void mac_st2(void *base);
+
 int main(void)
 {
 
 uint32_t a = 0x01234567;
 uint32_t b = 0x76543210;
+
+uint32_t data;
 
   *COMP_START_MMIO = 1u;
 
@@ -95,6 +100,9 @@ uint32_t b = 0x76543210;
 //mac_max(96); //[stev] - looks good
 mac_add_row(0x00000010); //[stev] - looks good
 
+
+mac_ld2(&data);
+mac_st2(&data);
 
   *COMP_END_MMIO = 1u;
 

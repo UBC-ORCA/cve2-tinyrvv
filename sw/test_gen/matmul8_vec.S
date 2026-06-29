@@ -63,6 +63,22 @@
 #define ADDMAC64(row, rs2) \
 .word (((0x03)<<25) | ((rs2)<<20) | ((row)<<15) | (0<<12) | (0<<7) | CUSTOM2)
 
+#define LD2MAC64(tile, base, imm5) \
+.word (((0x07)<<25) | \
+       ((tile)<<20) | \
+       ((base)<<15) | \
+       (0<<12)      | \
+       (((imm5)&0x1f)<<7) | \
+       CUSTOM2)
+
+#define ST2MAC64(tile, base, imm5) \
+.word (((0x08)<<25) | \
+       ((tile)<<20) | \
+       ((base)<<15) | \
+       (0<<12)      | \
+       (((imm5)&0x1f)<<7) | \
+       CUSTOM2)
+
 .globl mac_zz
 mac_zz:
     ZZMAC64
@@ -97,6 +113,18 @@ mac_max:
 .globl mac_add_row
 mac_add_row:
     ADDMAC64(3, 10)   # row=3, value in a0
+    ret
+
+.globl mac_ld2
+mac_ld2:
+    # a0 (x10) = base address
+    LD2MAC64(0, 10, 0)      # tile=(row=0,pair=0), base=x10, imm=0
+    ret
+
+.globl mac_st2
+mac_st2:
+    # a0 (x10) = base address
+    ST2MAC64(0, 10, 0)      # tile=(row=0,pair=0), base=x10, imm=0
     ret
 
 //[end]
