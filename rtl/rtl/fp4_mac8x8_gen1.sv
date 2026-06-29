@@ -307,30 +307,31 @@ endfunction
 	assign mv_even_col_idx = {mv_pair_idx, 1'b0};  // 2*rs2
 	assign mv_odd_col_idx  = {mv_pair_idx, 1'b1};  // 2*rs2+1
 
-always_comb begin
-  mv_data_o = 32'h0;
+//always_comb begin
+//  mv_data_o = 32'h0;
 
-  unique case (mv_op_i)
-    MV_EVEN: begin
-      mv_data_o = {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
-                    T[mv_row_idx][mv_even_col_idx]};
-    end
+//  unique case (mv_op_i)
+//    MV_EVEN: begin
+//      mv_data_o = {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
+//                    T[mv_row_idx][mv_even_col_idx]};
+//    end
 
-    MV_ODD: begin
-      mv_data_o = {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
-                    T[mv_row_idx][mv_odd_col_idx]};
-    end
+//    MV_ODD: begin
+//      mv_data_o = {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
+//                    T[mv_row_idx][mv_odd_col_idx]};
+//    end
 
-    MV_PAIR: begin
-      mv_data_o = {T[mv_row_idx][mv_odd_col_idx],
-                   T[mv_row_idx][mv_even_col_idx]};
-    end
+//    MV_PAIR: begin
 
-    default: begin
-      mv_data_o = 32'h0;
-    end
-  endcase
-end
+ //     mv_data_o = {T[mv_row_idx][mv_odd_col_idx],
+//                   T[mv_row_idx][mv_even_col_idx]};
+//    end
+
+//    default: begin
+//      mv_data_o = 32'h0;
+//    end
+//  endcase
+//end
 
 
     /**************************************************************************
@@ -384,6 +385,9 @@ end
 dump_next <= 0; //quick debug flag
 // --- [end] ---
 
+  mv_data_o <= 32'h0;
+
+
         end else if (clear_i) begin //[inst] - zzMAC64 
             // Synchronous clear also zeros the entire tile.
     $display("zzMAC64 triggered ...");
@@ -430,14 +434,52 @@ dump_next <= 1'b1;
 
     unique case (mv_op_i)
       MV_EVEN: begin
+      mv_data_o <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
+                    T[mv_row_idx][mv_even_col_idx]};
+
         T[mv_row_idx][mv_even_col_idx] <= '0;
       end
 
       MV_ODD: begin
+      mv_data_o <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
+                    T[mv_row_idx][mv_odd_col_idx]};
+
         T[mv_row_idx][mv_odd_col_idx] <= '0;
       end
 
       MV_PAIR: begin
+// --- [stev] ---
+$display("========== MV DEBUG ==========");
+$display("mv_op_i        = %0d", mv_op_i);
+$display("mv_row_i       = %0d", mv_row_i);
+$display("mv_pair_i      = %0d", mv_pair_i);
+
+$display("mv_row_idx     = %0d", mv_row_idx);
+$display("mv_pair_idx    = %0d", mv_pair_idx);
+$display("mv_even_col    = %0d", mv_even_col_idx);
+$display("mv_odd_col     = %0d", mv_odd_col_idx);
+
+$display("T[%0d][%0d] (even) = 0x%04h",
+         mv_row_idx, mv_even_col_idx,
+         T[mv_row_idx][mv_even_col_idx]);
+
+$display("T[%0d][%0d] (odd)  = 0x%04h",
+         mv_row_idx, mv_odd_col_idx,
+         T[mv_row_idx][mv_odd_col_idx]);
+
+$display("mv_data_o = 0x%08h",
+         {T[mv_row_idx][mv_odd_col_idx],
+          T[mv_row_idx][mv_even_col_idx]});
+$display("==============================");
+
+    $display("mv2MAC64 triggered ...");
+
+dump_next <= 1'b1;
+// --- [end] ---
+
+      mv_data_o <= {T[mv_row_idx][mv_odd_col_idx],
+                   T[mv_row_idx][mv_even_col_idx]};
+
         T[mv_row_idx][mv_even_col_idx] <= '0;
         T[mv_row_idx][mv_odd_col_idx]  <= '0;
       end
@@ -513,6 +555,29 @@ for (i = 0; i < 8; i++) begin
         end
         $write("\n");
       end
+
+$display("========== MV DEBUG ==========");
+$display("mv_op_i        = %0d", mv_op_i);
+$display("mv_row_i       = %0d", mv_row_i);
+$display("mv_pair_i      = %0d", mv_pair_i);
+
+$display("mv_row_idx     = %0d", mv_row_idx);
+$display("mv_pair_idx    = %0d", mv_pair_idx);
+$display("mv_even_col    = %0d", mv_even_col_idx);
+$display("mv_odd_col     = %0d", mv_odd_col_idx);
+
+$display("T[%0d][%0d] (even) = 0x%04h",
+         mv_row_idx, mv_even_col_idx,
+         T[mv_row_idx][mv_even_col_idx]);
+
+$display("T[%0d][%0d] (odd)  = 0x%04h",
+         mv_row_idx, mv_odd_col_idx,
+         T[mv_row_idx][mv_odd_col_idx]);
+
+$display("mv_data_o = 0x%08h",
+         {T[mv_row_idx][mv_odd_col_idx],
+          T[mv_row_idx][mv_even_col_idx]});
+$display("==============================");
 
   end
 // --- [end] ---
