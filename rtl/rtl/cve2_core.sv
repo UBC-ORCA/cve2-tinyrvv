@@ -645,6 +645,30 @@ cve2_pkg::mac_op_e cf_req_op_int;
 
   );
 
+// --- [stev] ---
+// ------------------------------------------------------------
+// CF writeback leaving ID stage
+// ------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+  if (cf_scalar_we || rf_we_id || rf_we_wb) begin
+    $display("========== [ID -> WB] ==========");
+    $display("cf_we      = %0b", cf_scalar_we);
+    $display("cf_rd      = x%0d", cf_scalar_waddr);
+    $display("cf_data    = 0x%08h", cf_scalar_wdata);
+
+    $display("rf_we_id   = %0b", rf_we_id);
+    $display("rf_rd_id   = x%0d", rf_waddr_id);
+    $display("rf_data_id = 0x%08h", rf_wdata_id);
+
+    $display("rf_we_wb   = %0b", rf_we_wb);
+    $display("rf_rd_wb   = x%0d", rf_waddr_wb);
+    $display("rf_data_wb = 0x%08h", rf_wdata_wb);
+    $display("================================");
+  end
+end
+
+// --- [end] ---
+
   // for RVFI only
   assign unused_illegal_insn_id = illegal_insn_id;
 
@@ -1048,6 +1072,18 @@ cve2_pkg::mac_op_e cf_req_op_int;
     .we_a_i   (rf_we_wb)
   );
 
+
+// --- [stev] ---
+always_ff @(posedge clk_i) begin
+  if (rf_we_wb) begin
+    $display("========== [REGFILE WRITE] ==========");
+    $display("rd    = x%0d", rf_waddr_wb);
+    $display("data  = 0x%08h", rf_wdata_wb);
+    $display("=====================================");
+  end
+end
+
+// --- [end] ---
 
   /////////////////////////////////////////
   // CSRs (Control and Status Registers) //

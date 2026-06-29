@@ -81,6 +81,22 @@ module cve2_cf_unit (
                 rs1_q   <= req_rs1_i;
                 rs2_q   <= req_rs2_i;
                 op_q    <= cf_req_op_i;
+
+// --- [stev] ---
+            $display("========== [CF] LATCH ==========");
+            $display("req_instr_i = %08h", req_instr_i);
+            $display("req_rs1_i   = %08h", req_rs1_i);
+            $display("req_rs2_i   = %08h", req_rs2_i);
+            $display("cf_req_op_i = %0d", cf_req_op_i);
+            $display("rd          = %0d", req_instr_i[11:7]);
+            $display("row(rs1)    = %0d", req_instr_i[19:15]);
+            $display("pair(rs2)   = %0d", req_instr_i[24:20]);
+        $display("mv_data        = 0x%08h", mv_data);
+            $display("===============================");
+
+// --- [end] ---
+
+
             end
         end
     end
@@ -188,6 +204,47 @@ module cve2_cf_unit (
         end
     end
 
+// --- [stev] ---
+always_comb begin
+    if (mv_en_i) begin
+        $display("\n========== [CF -> MAC] ==========");
+        $display("clear_i     = %0b", clear_i);
+        $display("mac_en_i    = %0b", mac_en_i);
+        $display("mv_en_i     = %0b", mv_en_i);
+        $display("mv_op_i     = %0d", mv_op_i);
+
+        $display("mv_row      = %0d", mv_row);
+        $display("mv_pair     = %0d", mv_pair);
+
+        $display("instr_q     = %08h", instr_q);
+        $display("req_instr_i = %08h", req_instr_i);
+
+        $display("rs1_q       = %08h", rs1_q);
+        $display("rs2_q       = %08h", rs2_q);
+        $display("mv_data        = 0x%08h", mv_data);
+
+        $display("=================================");
+    end
+end
+
+always_comb begin
+    if (state == S_EXEC) begin
+        $display("\n========== [CF OUTPUTS] ==========");
+        $display("mv_data        = %08h", mv_data);
+        $display("scalar_wdata_o = %08h", scalar_wdata_o);
+        $display("scalar_we_o    = %0b", scalar_we_o);
+        $display("scalar_waddr_o = %0d", scalar_waddr_o);
+        $display("done_o         = %0b", done_o);
+        $display("busy_o         = %0b", busy_o);
+        $display("==================================");
+    end
+end
+
+
+
+// --- [end] ---
+
+
     // ============================================================
     // TILE INSTANTIATION (UNCHANGED)
     // ============================================================
@@ -243,6 +300,27 @@ always_ff @(posedge clk_i) begin
         $display("scalar_we_o    = %0b", scalar_we_o);
         $display("========== [cve2_cf_unit] =====================");
     end
+end
+
+always_ff @(posedge clk_i) begin
+    $display("\n========== [CF] CYCLE ==========");
+    $display("state      = %0d -> %0d", state, state_n);
+    $display("req_valid  = %0b", req_valid_i);
+    $display("req_ready  = %0b", req_ready_o);
+
+    $display("LIVE:");
+    $display("  req_instr = %08h", req_instr_i);
+    $display("  req_rs1   = %08h", req_rs1_i);
+    $display("  req_rs2   = %08h", req_rs2_i);
+        $display("mv_data        = 0x%08h", mv_data);
+
+    $display("LATCHED:");
+    $display("  instr_q   = %08h", instr_q);
+    $display("  rs1_q     = %08h", rs1_q);
+    $display("  rs2_q     = %08h", rs2_q);
+    $display("  op_q      = %0d", op_q);
+
+    $display("================================");
 end
 
 // --- [end] ---
