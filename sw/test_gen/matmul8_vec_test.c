@@ -94,9 +94,9 @@ uint32_t data;
     //mac_zz(); //[stev] - looks good
     
 	mac_hw(a, b); //[stev] - looks good
-uint32_t chk = mac_out_pair(); //[stev] - not good
-//uint32_t chk = mac_out_even(); //[stev] - not good
-//uint32_t chk = mac_out_odd(); //[stev] - not good
+//uint32_t chk = mac_out_pair(); //[stev] - good
+//uint32_t chk = mac_out_even(); //[stev] - good
+uint32_t chk = mac_out_odd(); //[stev] - good
 //mac_max(96); //[stev] - looks good
 //mac_add_row(0x00000010); //[stev] - looks good
 
