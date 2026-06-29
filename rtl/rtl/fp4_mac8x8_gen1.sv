@@ -390,7 +390,7 @@ dump_next <= 0; //quick debug flag
 
         end else if (clear_i) begin //[inst] - zzMAC64 
             // Synchronous clear also zeros the entire tile.
-    $display("zzMAC64 triggered ...");
+    $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
 
             for (i = 0; i < 8; i++) begin
                 for (j = 0; j < 8; j++) begin
@@ -404,7 +404,7 @@ dump_next <= 1'b1;
 	
 	end else if (max_en_i) begin
 
-    $display("maxMAC64 triggered ...");
+    $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
 // --- [stev] ---
 dump_next <= 1'b1;
 // --- [end] ---
@@ -449,7 +449,7 @@ dump_next <= 1'b1;
 
       MV_PAIR: begin
 // --- [stev] ---
-$display("========== MV DEBUG ==========");
+$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
 $display("mv_op_i        = %0d", mv_op_i);
 $display("mv_row_i       = %0d", mv_row_i);
 $display("mv_pair_i      = %0d", mv_pair_i);
@@ -470,9 +470,9 @@ $display("T[%0d][%0d] (odd)  = 0x%04h",
 $display("mv_data_o = 0x%08h",
          {T[mv_row_idx][mv_odd_col_idx],
           T[mv_row_idx][mv_even_col_idx]});
-$display("==============================");
+$display("========== [fp4_mac8x8_gen1] ====================");
 
-    $display("mv2MAC64 triggered ...");
+    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
 
 dump_next <= 1'b1;
 // --- [end] ---
@@ -506,7 +506,7 @@ end else if (st2_en_i) begin
 
 	end else if (add_en_i) begin
 
-    $display("addMAC64 triggered ...");
+    $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
 // --- [stev] ---
 dump_next <= 1'b1;
 // --- [end] ---
@@ -532,7 +532,7 @@ dump_next <= 1'b1;
             //
             // So the result is:
             //   T[row][col] += A_q[row] * B_q[col]
-    $display("hwMAC64 triggered ...");
+    $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
 // --- [stev] ---
 dump_next <= 1'b1;
 // --- [end] ---
@@ -548,7 +548,7 @@ dump_next <= 1'b1;
 // --- [stev] ---
 if (dump_next) begin
     dump_next <= 1'b0;
-    $display("AFTER MAC INST");
+    $display("[fp4_mac8x8_gen1] AFTER MAC INST");
 for (i = 0; i < 8; i++) begin
         for (j = 0; j < 8; j++) begin
           $write("%0d ", T[i][j]);
@@ -556,7 +556,7 @@ for (i = 0; i < 8; i++) begin
         $write("\n");
       end
 
-$display("========== MV DEBUG ==========");
+$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
 $display("mv_op_i        = %0d", mv_op_i);
 $display("mv_row_i       = %0d", mv_row_i);
 $display("mv_pair_i      = %0d", mv_pair_i);
@@ -577,7 +577,7 @@ $display("T[%0d][%0d] (odd)  = 0x%04h",
 $display("mv_data_o = 0x%08h",
          {T[mv_row_idx][mv_odd_col_idx],
           T[mv_row_idx][mv_even_col_idx]});
-$display("==============================");
+$display("========== [fp4_mac8x8_gen1] ====================");
 
   end
 // --- [end] ---

@@ -124,9 +124,31 @@ module cve2_cf_unit (
         data_wdata_o= st2_data;
         data_be_o   = 4'b1111;
 
-        scalar_we_o   = 0;
+        //scalar_we_o   = 0;
         scalar_waddr_o= instr_q[11:7];
         scalar_wdata_o= mv_data;
+
+// --- [stev] ---
+    if (state == S_EXEC &&
+       ((op_q == cve2_pkg::OP_MVE) ||
+        (op_q == cve2_pkg::OP_MVO) ||
+        (op_q == cve2_pkg::OP_MV2))) begin
+
+        $display("========== [cve2_cf_unit] CF EXEC ==========");
+        $display("state          = %0d", state);
+        $display("op_q           = %0d", op_q);
+        $display("mv_en_i        = %0b", mv_en_i);
+        $display("mv_op_i        = %0d", mv_op_i);
+        $display("mv_row         = %0d", mv_row);
+        $display("mv_pair        = %0d", mv_pair);
+        $display("mv_data        = 0x%08h", mv_data);
+        $display("scalar_wdata_o = 0x%08h", scalar_wdata_o);
+        $display("scalar_we_o    = %0b", scalar_we_o);
+        $display("rd             = %0d", scalar_waddr_o);
+        $display("========== [cve2_cf_unit] ===================");
+    end
+
+// --- [end] ---
 
         req_ready_o = (state == S_IDLE);
         busy_o      = (state != S_IDLE);
@@ -208,5 +230,21 @@ module cve2_cf_unit (
         (op_q == cve2_pkg::OP_MVE) ||
         (op_q == cve2_pkg::OP_MVO) ||
         (op_q == cve2_pkg::OP_MV2);
+
+
+// --- [stev] ---
+always_ff @(posedge clk_i) begin
+    if (mv_en_i) begin
+        $display("========== [cve2_cf_unit] CF <- MAC ==========");
+        $display("mv_en_i        = %0b", mv_en_i);
+        $display("mv_op_i        = %0d", mv_op_i);
+        $display("mv_data        = 0x%08h", mv_data);
+        $display("scalar_wdata_o = 0x%08h", scalar_wdata_o);
+        $display("scalar_we_o    = %0b", scalar_we_o);
+        $display("========== [cve2_cf_unit] =====================");
+    end
+end
+
+// --- [end] ---
 
 endmodule
