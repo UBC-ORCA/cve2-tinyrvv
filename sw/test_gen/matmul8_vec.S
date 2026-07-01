@@ -110,9 +110,71 @@ mac_max:
     MAXMAC64(10)      # uses a0 (x10)
     ret
 
+/*
 .globl mac_add_row
 mac_add_row:
     ADDMAC64(3, 10)   # row=3, value in a0
+    ret
+*/
+
+.globl mac_add_row
+mac_add_row:
+    # a0 = row (0..7)
+    # a1 = value
+
+    li      t2, 8
+    bgeu    a0, t2, 1f          # optional bounds check
+
+    slli    t0, a0, 2           # sizeof(pointer)=4
+    la      t1, add_table
+    add     t1, t1, t0
+    lw      t1, 0(t1)
+    jr      t1
+
+1:
+    ret                         # invalid row
+
+.align 2
+add_table:
+    .word add_row0
+    .word add_row1
+    .word add_row2
+    .word add_row3
+    .word add_row4
+    .word add_row5
+    .word add_row6
+    .word add_row7
+
+add_row0:
+    ADDMAC64(0, 11)
+    ret
+
+add_row1:
+    ADDMAC64(1, 11)
+    ret
+
+add_row2:
+    ADDMAC64(2, 11)
+    ret
+
+add_row3:
+    ADDMAC64(3, 11)
+    ret
+
+add_row4:
+    ADDMAC64(4, 11)
+    ret
+
+add_row5:
+    ADDMAC64(5, 11)
+    ret
+
+add_row6:
+    ADDMAC64(6, 11)
+    ret
+
+add_row7:
+    ADDMAC64(7, 11)
     ret
 
 .globl mac_ld2

@@ -76,7 +76,8 @@ extern uint32_t mac_out_even(void);
 extern uint32_t mac_out_odd(void);
 extern uint32_t mac_out_pair(void);
 extern void mac_max(int16_t threshold);
-extern void mac_add_row(uint32_t value);
+//extern void mac_add_row(uint32_t value);
+extern void mac_add_row(uint32_t row, int16_t value);
 
 extern void mac_ld2(void *base);
 extern void mac_st2(void *base);
@@ -94,15 +95,18 @@ uint32_t data;
     //mac_zz(); //[stev] - looks good
     
 	mac_hw(a, b); //[stev] - looks good
-//uint32_t chk = mac_out_pair(); //[stev] - good
+uint32_t chk = mac_out_pair(); //[stev] - good
 //uint32_t chk = mac_out_even(); //[stev] - good
-uint32_t chk = mac_out_odd(); //[stev] - good
+//uint32_t chk = mac_out_odd(); //[stev] - good
 //mac_max(96); //[stev] - looks good
-//mac_add_row(0x00000010); //[stev] - looks good
+mac_add_row(7,0x00000010); //[stev] - looks good
 
 
 //mac_ld2(&data); //[stev] - not good
 //mac_st2(&data); //[stev] - not good
+
+//mac_max(12); //[stev] - looks good
+//chk = mac_out_pair(); //[stev] - good
 
 
   *COMP_END_MMIO = 1u;
