@@ -189,6 +189,577 @@ mac_st2:
     ST2MAC64(0, 10, 0)      # tile=(row=0,pair=0), base=x10, imm=0
     ret
 
+
+//mv handler
+.globl mac_out
+mac_out:
+    # a0 = row (0..7)
+    # a1 = pair (0..3)
+    # a2 = mode
+    # returns a0
+
+    li      t2, 8
+    bgeu    a0, t2, 1f
+
+    li      t2, 4
+    bgeu    a1, t2, 1f
+
+    li      t2, 3
+    bgeu    a2, t2, 1f
+
+    beqz    a2, even_dispatch
+
+    li      t2, 1
+    beq     a2, t2, odd_dispatch
+
+    j       pair_dispatch
+
+1:
+    li      a0, 0
+    ret
+
+even_dispatch:
+    slli    t0, a0, 2      # row * 4
+    add     t0, t0, a1     # + pair
+    slli    t0, t0, 2      # *4
+
+    la      t1, even_table
+    add     t1, t1, t0
+    lw      t1, 0(t1)
+    jr      t1
+
+.align 2
+even_table:
+    .word even00
+    .word even01
+    .word even02
+    .word even03
+
+    .word even10
+    .word even11
+    .word even12
+    .word even13
+
+    .word even20
+    .word even21
+    .word even22
+    .word even23
+
+    .word even30
+    .word even31
+    .word even32
+    .word even33
+
+    .word even40
+    .word even41
+    .word even42
+    .word even43
+
+    .word even50
+    .word even51
+    .word even52
+    .word even53
+
+    .word even60
+    .word even61
+    .word even62
+    .word even63
+
+    .word even70
+    .word even71
+    .word even72
+    .word even73
+
+even00:
+    MVEMAC64(10,0,0)
+    ret
+
+even01:
+    MVEMAC64(10,0,1)
+    ret
+
+even02:
+    MVEMAC64(10,0,2)
+    ret
+
+even03:
+    MVEMAC64(10,0,3)
+    ret
+
+
+even10:
+    MVEMAC64(10,1,0)
+    ret
+
+even11:
+    MVEMAC64(10,1,1)
+    ret
+
+even12:
+    MVEMAC64(10,1,2)
+    ret
+
+even13:
+    MVEMAC64(10,1,3)
+    ret
+
+even20:
+    MVEMAC64(10,2,0)
+    ret
+
+even21:
+    MVEMAC64(10,2,1)
+    ret
+
+even22:
+    MVEMAC64(10,2,2)
+    ret
+
+even23:
+    MVEMAC64(10,2,3)
+    ret
+
+even30:
+    MVEMAC64(10,3,0)
+    ret
+
+even31:
+    MVEMAC64(10,3,1)
+    ret
+
+even32:
+    MVEMAC64(10,3,2)
+    ret
+
+even33:
+    MVEMAC64(10,3,3)
+    ret
+
+even40:
+    MVEMAC64(10,4,0)
+    ret
+
+even41:
+    MVEMAC64(10,4,1)
+    ret
+
+even42:
+    MVEMAC64(10,4,2)
+    ret
+
+even43:
+    MVEMAC64(10,4,3)
+    ret
+
+even50:
+    MVEMAC64(10,5,0)
+    ret
+
+even51:
+    MVEMAC64(10,5,1)
+    ret
+
+even52:
+    MVEMAC64(10,5,2)
+    ret
+
+even53:
+    MVEMAC64(10,5,3)
+    ret
+
+even60:
+    MVEMAC64(10,6,0)
+    ret
+
+even61:
+    MVEMAC64(10,6,1)
+    ret
+
+even62:
+    MVEMAC64(10,6,2)
+    ret
+
+even63:
+    MVEMAC64(10,6,3)
+    ret
+
+even70:
+    MVEMAC64(10,7,0)
+    ret
+
+even71:
+    MVEMAC64(10,7,1)
+    ret
+
+even72:
+    MVEMAC64(10,7,2)
+    ret
+
+even73:
+    MVEMAC64(10,7,3)
+    ret
+
+
+odd_dispatch:
+    slli    t0, a0, 2      # row * 4
+    add     t0, t0, a1     # + pair
+    slli    t0, t0, 2      # *4
+
+    la      t1, odd_table
+    add     t1, t1, t0
+    lw      t1, 0(t1)
+    jr      t1
+
+.align 2
+odd_table:
+    .word odd00
+    .word odd01
+    .word odd02
+    .word odd03
+
+    .word odd10
+    .word odd11
+    .word odd12
+    .word odd13
+
+    .word odd20
+    .word odd21
+    .word odd22
+    .word odd23
+
+    .word odd30
+    .word odd31
+    .word odd32
+    .word odd33
+
+    .word odd40
+    .word odd41
+    .word odd42
+    .word odd43
+
+    .word odd50
+    .word odd51
+    .word odd52
+    .word odd53
+
+    .word odd60
+    .word odd61
+    .word odd62
+    .word odd63
+
+    .word odd70
+    .word odd71
+    .word odd72
+    .word odd73
+
+odd00:
+    MVOMAC64(10,0,0)
+    ret
+
+odd01:
+    MVOMAC64(10,0,1)
+    ret
+
+odd02:
+    MVOMAC64(10,0,2)
+    ret
+
+odd03:
+    MVOMAC64(10,0,3)
+    ret
+
+odd10:
+    MVOMAC64(10,1,0)
+    ret
+
+odd11:
+    MVOMAC64(10,1,1)
+    ret
+
+odd12:
+    MVOMAC64(10,1,2)
+    ret
+
+odd13:
+    MVOMAC64(10,1,3)
+    ret
+
+odd20:
+    MVOMAC64(10,2,0)
+    ret
+
+odd21:
+    MVOMAC64(10,2,1)
+    ret
+
+odd22:
+    MVOMAC64(10,2,2)
+    ret
+
+odd23:
+    MVOMAC64(10,2,3)
+    ret
+
+odd30:
+    MVOMAC64(10,3,0)
+    ret
+
+odd31:
+    MVOMAC64(10,3,1)
+    ret
+
+odd32:
+    MVOMAC64(10,3,2)
+    ret
+
+odd33:
+    MVOMAC64(10,3,3)
+    ret
+
+odd40:
+    MVOMAC64(10,4,0)
+    ret
+
+odd41:
+    MVOMAC64(10,4,1)
+    ret
+
+odd42:
+    MVOMAC64(10,4,2)
+    ret
+
+odd43:
+    MVOMAC64(10,4,3)
+    ret
+
+odd50:
+    MVOMAC64(10,5,0)
+    ret
+
+odd51:
+    MVOMAC64(10,5,1)
+    ret
+
+odd52:
+    MVOMAC64(10,5,2)
+    ret
+
+odd53:
+    MVOMAC64(10,5,3)
+    ret
+
+odd60:
+    MVOMAC64(10,6,0)
+    ret
+
+odd61:
+    MVOMAC64(10,6,1)
+    ret
+
+odd62:
+    MVOMAC64(10,6,2)
+    ret
+
+odd63:
+    MVOMAC64(10,6,3)
+    ret
+
+odd70:
+    MVOMAC64(10,7,0)
+    ret
+
+odd71:
+    MVOMAC64(10,7,1)
+    ret
+
+odd72:
+    MVOMAC64(10,7,2)
+    ret
+
+odd73:
+    MVOMAC64(10,7,3)
+    ret
+
+pair_dispatch:
+    slli    t0, a0, 2      # row * 4
+    add     t0, t0, a1     # + pair
+    slli    t0, t0, 2      # *4
+
+    la      t1, pair_table
+    add     t1, t1, t0
+    lw      t1, 0(t1)
+    jr      t1
+
+.align 2
+pair_table:
+    .word pair00
+    .word pair01
+    .word pair02
+    .word pair03
+
+    .word pair10
+    .word pair11
+    .word pair12
+    .word pair13
+
+    .word pair20
+    .word pair21
+    .word pair22
+    .word pair23
+
+    .word pair30
+    .word pair31
+    .word pair32
+    .word pair33
+
+    .word pair40
+    .word pair41
+    .word pair42
+    .word pair43
+
+    .word pair50
+    .word pair51
+    .word pair52
+    .word pair53
+
+    .word pair60
+    .word pair61
+    .word pair62
+    .word pair63
+
+    .word pair70
+    .word pair71
+    .word pair72
+    .word pair73
+
+pair00:
+    MV2MAC64(10,0,0)
+    ret
+
+pair01:
+    MV2MAC64(10,0,1)
+    ret
+
+pair02:
+    MV2MAC64(10,0,2)
+    ret
+
+pair03:
+    MV2MAC64(10,0,3)
+    ret
+
+pair10:
+    MV2MAC64(10,1,0)
+    ret
+
+pair11:
+    MV2MAC64(10,1,1)
+    ret
+
+pair12:
+    MV2MAC64(10,1,2)
+    ret
+
+pair13:
+    MV2MAC64(10,1,3)
+    ret
+
+pair20:
+    MV2MAC64(10,2,0)
+    ret
+
+pair21:
+    MV2MAC64(10,2,1)
+    ret
+
+pair22:
+    MV2MAC64(10,2,2)
+    ret
+
+pair23:
+    MV2MAC64(10,2,3)
+    ret
+
+pair30:
+    MV2MAC64(10,3,0)
+    ret
+
+pair31:
+    MV2MAC64(10,3,1)
+    ret
+
+pair32:
+    MV2MAC64(10,3,2)
+    ret
+
+pair33:
+    MV2MAC64(10,3,3)
+    ret
+
+pair40:
+    MV2MAC64(10,4,0)
+    ret
+
+pair41:
+    MV2MAC64(10,4,1)
+    ret
+
+pair42:
+    MV2MAC64(10,4,2)
+    ret
+
+pair43:
+    MV2MAC64(10,4,3)
+    ret
+
+pair50:
+    MV2MAC64(10,5,0)
+    ret
+
+pair51:
+    MV2MAC64(10,5,1)
+    ret
+
+pair52:
+    MV2MAC64(10,5,2)
+    ret
+
+pair53:
+    MV2MAC64(10,5,3)
+    ret
+
+pair60:
+    MV2MAC64(10,6,0)
+    ret
+
+pair61:
+    MV2MAC64(10,6,1)
+    ret
+
+pair62:
+    MV2MAC64(10,6,2)
+    ret
+
+pair63:
+    MV2MAC64(10,6,3)
+    ret
+
+pair70:
+    MV2MAC64(10,7,0)
+    ret
+
+pair71:
+    MV2MAC64(10,7,1)
+    ret
+
+pair72:
+    MV2MAC64(10,7,2)
+    ret
+
+pair73:
+    MV2MAC64(10,7,3)
+    ret
+
 //[end]
 
 

@@ -82,6 +82,12 @@ extern void mac_add_row(uint32_t row, int16_t value);
 extern void mac_ld2(void *base);
 extern void mac_st2(void *base);
 
+// mode:
+//   0 = even
+//   1 = odd
+//   2 = pair
+uint32_t mac_out(uint32_t row, uint32_t pair, uint32_t mode);
+
 int main(void)
 {
 
@@ -107,6 +113,10 @@ mac_add_row(7,0x00000010); //[stev] - looks good
 
 //mac_max(12); //[stev] - looks good
 //chk = mac_out_pair(); //[stev] - good
+
+//chk = mac_out(0,1,0); 
+//chk = mac_out(6,3,1); 
+chk = mac_out(4,1,2); 
 
 
   *COMP_END_MMIO = 1u;
