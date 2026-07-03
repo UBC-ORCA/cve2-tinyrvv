@@ -128,6 +128,8 @@ module fp4_mac8x8_gen1 (
 //[stev] - need to cleanup and reuse ports, create mux for internal logic
 );
 
+logic [31:0] mv_data;
+assign mv_data_o = mv_data;
     /**************************************************************************
      * INTERNAL TILE STORAGE
      *
@@ -357,232 +359,100 @@ endfunction
 
 
 
-    /**************************************************************************
+/**************************************************************************
      * MAIN TILE UPDATE LOGIC
-     *
-     * Behavior priority:
-     *   1) reset     -> zero tile
-     *   2) clear_i   -> zero tile
-     *   3) mac_en_i  -> perform one outer-product MAC update
-     *   4) otherwise -> hold state
-     *
-     * The MAC update is:
-     *   for each row i and column j:
-     *       T[i][j] <= T[i][j] + a_q[i] * b_q[j]
-     *
-     * This is the GEN1 outer-product engine.
      **************************************************************************/
     integer i, j;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            // Asynchronous active-low reset clears the entire tile.
+            // Asynchronous active-low reset clears everything cleanly
             for (i = 0; i < 8; i++) begin
                 for (j = 0; j < 8; j++) begin
                     T[i][j] <= '0;
                 end
             end
-// --- [stev] ---
-dump_next <= 0; //quick debug flag
-// --- [end] ---
-
-  mv_data_o <= 32'h0;
-
-
-        end else if (clear_i) begin //[inst] - zzMAC64 
-            // Synchronous clear also zeros the entire tile.
-    $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
-
-            for (i = 0; i < 8; i++) begin
+            dump_next <= 1'b0;
+            mv_data   <= 32'h0;
+        end 
+        else begin 
+            // 1. Core Hardware Instructions Tree
+            if (clear_i) begin
+                $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
+                for (i = 0; i < 8; i++) begin
+                    for (j = 0; j < 8; j++) begin
+                        T[i][j] <= '0;
+                    end
+                end
+                dump_next <= 1'b1;
+            end 
+            else if (max_en_i) begin
+                $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
+                dump_next <= 1'b1;
+                for (i = 0; i < 8; i++) begin
+                    for (j = 0; j < 8; j++) begin
+                        if ($signed(T[i][j]) < max_scalar)
+                            T[i][j] <= max_scalar;
+                    end
+                end
+            end 
+            else if (mv_en_i) begin
+                unique case (mv_op_i)
+                    MV_EVEN: begin
+                        mv_data <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, T[mv_row_idx][mv_even_col_idx]};
+                        T[mv_row_idx][mv_even_col_idx] <= '0;
+                    end
+                    MV_ODD: begin
+                        mv_data <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}}, T[mv_row_idx][mv_odd_col_idx]};
+                        T[mv_row_idx][mv_odd_col_idx] <= '0;
+                    end
+                    MV_PAIR: begin
+                        $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
+                        dump_next <= 1'b1;
+                        mv_data   <= {T[mv_row_idx][mv_odd_col_idx], T[mv_row_idx][mv_even_col_idx]};
+                        T[mv_row_idx][mv_even_col_idx] <= '0;
+                        T[mv_row_idx][mv_odd_col_idx]  <= '0;
+                    end
+                    default: ;
+                endcase
+            end 
+            else if (ld2_en_i) begin
+                T[tm_row_idx][tm_even_col_idx] <= ld2_data_i[15:0];
+                T[tm_row_idx][tm_odd_col_idx]  <= ld2_data_i[31:16];
+            end 
+            else if (st2_en_i) begin
+                T[tm_row_idx][tm_even_col_idx] <= '0;
+                T[tm_row_idx][tm_odd_col_idx]  <= '0;
+            end 
+            else if (add_en_i) begin
+                $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
+                dump_next <= 1'b1;
                 for (j = 0; j < 8; j++) begin
-                    T[i][j] <= '0;
+                    T[add_row_i][j] <= sat16_add(T[add_row_i][j], add_scalar);
+                end
+            end 
+            else if (mac_en_i) begin
+                $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
+                dump_next <= 1'b1;
+                for (i = 0; i < 8; i++) begin
+                    for (j = 0; j < 8; j++) begin
+                        T[i][j] <= T[i][j] + (a_q[i] * b_q[j]);
+                    end
                 end
             end
 
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-	
-	end else if (max_en_i) begin
-
-    $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-
-            // ----------------------------------------------------
-            // maxMAC64:
-            // T[i][j] = max(T[i][j], scalar)
-            // scalar comes from rs1[15:0]
-            // ----------------------------------------------------
-            for (i = 0; i < 8; i++) begin
-                for (j = 0; j < 8; j++) begin
-                    if ($signed(T[i][j]) < max_scalar)
-                        T[i][j] <= max_scalar;
-                    else
-                        T[i][j] <= T[i][j];
-                end
+            // 2. Clear simulation debug flag on the cycle immediately following a dump
+            if (dump_next) begin
+                dump_next <= 1'b0;
+                $display("[fp4_mac8x8_gen1] AFTER MAC INST");
+                $display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
+                $display("mv_op_i        = %0d", mv_op_i);
+                $display("mv_row_i       = %0d", mv_row_i);
+                $display("mv_pair_i      = %0d", mv_pair_i);
+                $display("mv_data        = 0x%08h", {T[mv_row_idx][mv_odd_col_idx], T[mv_row_idx][mv_even_col_idx]});
+                $display("========== [fp4_mac8x8_gen1] ====================");
             end
-
-
-  end else if (mv_en_i) begin
-    /**************************************************************************
-     * Signals and functions for:
-     * 1) mvoMAC64 rd, rs1, rs2 
-     * 2) mveMAC64 rd, rs1, rs2 
-     * 3) mv2MAC64 rd, rs1, rs2 
-     **************************************************************************/
-
-    unique case (mv_op_i)
-      MV_EVEN: begin
-      mv_data_o <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
-                    T[mv_row_idx][mv_even_col_idx]};
-
-        T[mv_row_idx][mv_even_col_idx] <= '0;
-      end
-
-      MV_ODD: begin
-      mv_data_o <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
-                    T[mv_row_idx][mv_odd_col_idx]};
-
-        T[mv_row_idx][mv_odd_col_idx] <= '0;
-      end
-
-      MV_PAIR: begin
-// --- [stev] ---
-$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
-$display("mv_op_i        = %0d", mv_op_i);
-$display("mv_row_i       = %0d", mv_row_i);
-$display("mv_pair_i      = %0d", mv_pair_i);
-
-$display("mv_row_idx     = %0d", mv_row_idx);
-$display("mv_pair_idx    = %0d", mv_pair_idx);
-$display("mv_even_col    = %0d", mv_even_col_idx);
-$display("mv_odd_col     = %0d", mv_odd_col_idx);
-
-$display("T[%0d][%0d] (even) = 0x%04h",
-         mv_row_idx, mv_even_col_idx,
-         T[mv_row_idx][mv_even_col_idx]);
-
-$display("T[%0d][%0d] (odd)  = 0x%04h",
-         mv_row_idx, mv_odd_col_idx,
-         T[mv_row_idx][mv_odd_col_idx]);
-
-$display("mv_data_o = 0x%08h",
-         {T[mv_row_idx][mv_odd_col_idx],
-          T[mv_row_idx][mv_even_col_idx]});
-$display("========== [fp4_mac8x8_gen1] ====================");
-
-    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
-
-dump_next <= 1'b1;
-// --- [end] ---
-
-      mv_data_o <= {T[mv_row_idx][mv_odd_col_idx],
-                   T[mv_row_idx][mv_even_col_idx]};
-
-        T[mv_row_idx][mv_even_col_idx] <= '0;
-        T[mv_row_idx][mv_odd_col_idx]  <= '0;
-      end
-
-      default: begin
-      end
-    endcase
-  
-
-end else if (ld2_en_i) begin
-    /**************************************************************************
-     * Signals and functions for:
-     * 1) ld2MAC64 rs2, IMM12(rs1) 
-     * 2) st2MAC64 rs2, IMM12(rs1)
-     **************************************************************************/
-
-  T[tm_row_idx][tm_even_col_idx] <= ld2_data_i[15:0];
-  T[tm_row_idx][tm_odd_col_idx]  <= ld2_data_i[31:16];
-
-end else if (st2_en_i) begin
-  T[tm_row_idx][tm_even_col_idx] <= '0;
-  T[tm_row_idx][tm_odd_col_idx]  <= '0;
-
-
-	end else if (add_en_i) begin
-
-    $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-
-    	// ----------------------------------------------------
-    	// addMAC64 rs1, rs2
-    	//
-    	// row = add_row_i (from instruction field rs1[2:0])
-    	// scalar = rs2[15:0]
-    	//
-    	// T[row][j] += scalar (saturating)
-    	// ----------------------------------------------------
-    	for (j = 0; j < 8; j++) begin
-        	T[add_row_i][j] <= sat16_add(T[add_row_i][j], add_scalar);
-    	end
-
-        end else if (mac_en_i) begin
-            // One MAC instruction = one outer-product accumulate.
-            //
-            // IMPORTANT on dimensions:
-            //   - A contributes the ROW dimension
-            //   - B contributes the COLUMN dimension
-            //
-            // So the result is:
-            //   T[row][col] += A_q[row] * B_q[col]
-    $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-
-
-            for (i = 0; i < 8; i++) begin //[inst] - hwMAC64 rs1, rs2
-                for (j = 0; j < 8; j++) begin
-                    T[i][j] <= T[i][j] + (a_q[i] * b_q[j]);
-                end
-            end
-        end
-
-// --- [stev] ---
-if (dump_next) begin
-    dump_next <= 1'b0;
-    $display("[fp4_mac8x8_gen1] AFTER MAC INST");
-for (i = 0; i < 8; i++) begin
-        for (j = 0; j < 8; j++) begin
-          $write("%0d ", T[i][j]);
-        end
-        $write("\n");
-      end
-
-$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
-$display("mv_op_i        = %0d", mv_op_i);
-$display("mv_row_i       = %0d", mv_row_i);
-$display("mv_pair_i      = %0d", mv_pair_i);
-
-$display("mv_row_idx     = %0d", mv_row_idx);
-$display("mv_pair_idx    = %0d", mv_pair_idx);
-$display("mv_even_col    = %0d", mv_even_col_idx);
-$display("mv_odd_col     = %0d", mv_odd_col_idx);
-
-$display("T[%0d][%0d] (even) = 0x%04h",
-         mv_row_idx, mv_even_col_idx,
-         T[mv_row_idx][mv_even_col_idx]);
-
-$display("T[%0d][%0d] (odd)  = 0x%04h",
-         mv_row_idx, mv_odd_col_idx,
-         T[mv_row_idx][mv_odd_col_idx]);
-
-$display("mv_data_o = 0x%08h",
-         {T[mv_row_idx][mv_odd_col_idx],
-          T[mv_row_idx][mv_even_col_idx]});
-$display("========== [fp4_mac8x8_gen1] ====================");
-
-  end
-// --- [end] ---
-
-    end
+        end // Cleanly closes the "else" (non-reset) block
+    end // Closes always_ff
 
     /**************************************************************************
      * READBACK PATH
