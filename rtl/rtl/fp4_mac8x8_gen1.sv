@@ -172,8 +172,95 @@ module fp4_mac8x8_gen1 (
      *
      * We use 5 signed bits because the range -12..12 fits in signed 5-bit.
      **************************************************************************/
-    logic signed [4:0] a_q [0:7];
-    logic signed [4:0] b_q [0:7];
+    // logic signed [4:0] a_q [0:7];
+    // logic signed [4:0] b_q [0:7];
+
+
+    function automatic logic signed [8:0] fp4_mul_quanta(
+        input logic [3:0] fp4_a,
+        input logic [3:0] fp4_b
+    );
+
+        logic signA, signB;
+        logic [2:0] magA, magB;
+ 
+        logic [7:0] outLUT[0:63] = '{
+            8'b00000000, /* 0.0 * 0.0 => 0.0 */ 
+            8'b00000000, /* 0.0 * 0.5 => 0.0 */ 
+            8'b00000000, /* 0.0 * 1.0 => 0.0 */ 
+            8'b00000000, /* 0.0 * 1.5 => 0.0 */ 
+            8'b00000000, /* 0.0 * 2.0 => 0.0 */ 
+            8'b00000000, /* 0.0 * 3.0 => 0.0 */ 
+            8'b00000000, /* 0.0 * 4.0 => 0.0 */ 
+            8'b00000000, /* 0.0 * 6.0 => 0.0 */ 
+            8'b00000000, /* 0.5 * 0.0 => 0.0 */ 
+            8'b00000001, /* 0.5 * 0.5 => 0.25 */ 
+            8'b00000010, /* 0.5 * 1.0 => 0.5 */ 
+            8'b00000011, /* 0.5 * 1.5 => 0.75 */ 
+            8'b00000100, /* 0.5 * 2.0 => 1.0 */ 
+            8'b00000110, /* 0.5 * 3.0 => 1.5 */ 
+            8'b00001000, /* 0.5 * 4.0 => 2.0 */ 
+            8'b00001100, /* 0.5 * 6.0 => 3.0 */ 
+            8'b00000000, /* 1.0 * 0.0 => 0.0 */ 
+            8'b00000010, /* 1.0 * 0.5 => 0.5 */ 
+            8'b00000100, /* 1.0 * 1.0 => 1.0 */ 
+            8'b00000110, /* 1.0 * 1.5 => 1.5 */ 
+            8'b00001000, /* 1.0 * 2.0 => 2.0 */ 
+            8'b00001100, /* 1.0 * 3.0 => 3.0 */ 
+            8'b00010000, /* 1.0 * 4.0 => 4.0 */ 
+            8'b00011000, /* 1.0 * 6.0 => 6.0 */ 
+            8'b00000000, /* 1.5 * 0.0 => 0.0 */ 
+            8'b00000011, /* 1.5 * 0.5 => 0.75 */ 
+            8'b00000110, /* 1.5 * 1.0 => 1.5 */ 
+            8'b00001001, /* 1.5 * 1.5 => 2.25 */ 
+            8'b00001100, /* 1.5 * 2.0 => 3.0 */ 
+            8'b00010010, /* 1.5 * 3.0 => 4.5 */ 
+            8'b00011000, /* 1.5 * 4.0 => 6.0 */ 
+            8'b00100100, /* 1.5 * 6.0 => 9.0 */ 
+            8'b00000000, /* 2.0 * 0.0 => 0.0 */ 
+            8'b00000100, /* 2.0 * 0.5 => 1.0 */ 
+            8'b00001000, /* 2.0 * 1.0 => 2.0 */ 
+            8'b00001100, /* 2.0 * 1.5 => 3.0 */ 
+            8'b00010000, /* 2.0 * 2.0 => 4.0 */ 
+            8'b00011000, /* 2.0 * 3.0 => 6.0 */ 
+            8'b00100000, /* 2.0 * 4.0 => 8.0 */ 
+            8'b00110000, /* 2.0 * 6.0 => 12.0 */ 
+            8'b00000000, /* 3.0 * 0.0 => 0.0 */ 
+            8'b00000110, /* 3.0 * 0.5 => 1.5 */ 
+            8'b00001100, /* 3.0 * 1.0 => 3.0 */ 
+            8'b00010010, /* 3.0 * 1.5 => 4.5 */ 
+            8'b00011000, /* 3.0 * 2.0 => 6.0 */ 
+            8'b00100100, /* 3.0 * 3.0 => 9.0 */ 
+            8'b00110000, /* 3.0 * 4.0 => 12.0 */ 
+            8'b01001000, /* 3.0 * 6.0 => 18.0 */ 
+            8'b00000000, /* 4.0 * 0.0 => 0.0 */ 
+            8'b00001000, /* 4.0 * 0.5 => 2.0 */ 
+            8'b00010000, /* 4.0 * 1.0 => 4.0 */ 
+            8'b00011000, /* 4.0 * 1.5 => 6.0 */ 
+            8'b00100000, /* 4.0 * 2.0 => 8.0 */ 
+            8'b00110000, /* 4.0 * 3.0 => 12.0 */ 
+            8'b01000000, /* 4.0 * 4.0 => 16.0 */ 
+            8'b01100000, /* 4.0 * 6.0 => 24.0 */ 
+            8'b00000000, /* 6.0 * 0.0 => 0.0 */ 
+            8'b00001100, /* 6.0 * 0.5 => 3.0 */ 
+            8'b00011000, /* 6.0 * 1.0 => 6.0 */ 
+            8'b00100100, /* 6.0 * 1.5 => 9.0 */ 
+            8'b00110000, /* 6.0 * 2.0 => 12.0 */ 
+            8'b01001000, /* 6.0 * 3.0 => 18.0 */ 
+            8'b01100000, /* 6.0 * 4.0 => 24.0 */ 
+            8'b10010000 /* 6.0 * 6.0 => 36.0 */ 
+        };
+
+        signA = fp4_a[3];
+        signB = fp4_b[3];
+
+        magA = fp4_a[2:0];
+        magB = fp4_b[2:0];
+
+        fp4_mul_quanta[8] = signA ^ signB;
+        fp4_mul_quanta[7:0] = outLUT[{magA, magB}]; 
+
+    endfunction
 
     /**************************************************************************
      * FP4 -> SIGNED QUANTA DECODE FUNCTION
@@ -198,34 +285,34 @@ module fp4_mac8x8_gen1 (
      * If your project uses a different 3-bit E2M1 encoding order, THIS is the
      * one place in the RTL to change.
      **************************************************************************/
-    function automatic logic signed [4:0] fp4_to_quanta (
-        input logic [3:0] fp4
-    );
-        logic       sign;
-        logic [2:0] mag;
-        logic signed [4:0] q_mag;
-        begin
-            sign = fp4[3];
-            mag  = fp4[2:0];
+    // function automatic logic signed [4:0] fp4_to_quanta (
+    //     input logic [3:0] fp4
+    // );
+    //     logic       sign;
+    //     logic [2:0] mag;
+    //     logic signed [4:0] q_mag;
+    //     begin
+    //         sign = fp4[3];
+    //         mag  = fp4[2:0];
 
-            unique case (mag)
-                3'b000: q_mag =  5'sd0;
-                3'b001: q_mag =  5'sd1;
-                3'b010: q_mag =  5'sd2;
-                3'b011: q_mag =  5'sd3;
-                3'b100: q_mag =  5'sd4;
-                3'b101: q_mag =  5'sd6;
-                3'b110: q_mag =  5'sd8;
-                3'b111: q_mag =  5'sd12;
-                default: q_mag = 5'sd0;
-            endcase
+    //         unique case (mag)
+    //             3'b000: q_mag =  5'sd0;
+    //             3'b001: q_mag =  5'sd1;
+    //             3'b010: q_mag =  5'sd2;
+    //             3'b011: q_mag =  5'sd3;
+    //             3'b100: q_mag =  5'sd4;
+    //             3'b101: q_mag =  5'sd6;
+    //             3'b110: q_mag =  5'sd8;
+    //             3'b111: q_mag =  5'sd12;
+    //             default: q_mag = 5'sd0;
+    //         endcase
 
-            if (sign)
-                fp4_to_quanta = -q_mag;
-            else
-                fp4_to_quanta = q_mag;
-        end
-    endfunction
+    //         if (sign)
+    //             fp4_to_quanta = -q_mag;
+    //         else
+    //             fp4_to_quanta = q_mag;
+    //     end
+    // endfunction
 
     /**************************************************************************
      * COMBINATIONAL UNPACK LOGIC
@@ -250,12 +337,12 @@ module fp4_mac8x8_gen1 (
      * This happens combinationally from the input words, so when mac_en_i
      * is asserted on a clock edge, the tile update can directly use a_q/b_q.
      **************************************************************************/
-    generate
-        for (g = 0; g < 8; g++) begin : GEN_DECODE
-            assign a_q[g] = fp4_to_quanta(a_fp4[g]);
-            assign b_q[g] = fp4_to_quanta(b_fp4[g]);
-        end
-    endgenerate
+    // generate
+    //     for (g = 0; g < 8; g++) begin : GEN_DECODE
+    //         assign a_q[g] = fp4_to_quanta(a_fp4[g]);
+    //         assign b_q[g] = fp4_to_quanta(b_fp4[g]);
+    //     end
+    // endgenerate
 
     /**************************************************************************
      * Signals for maxMAC64 rs1
@@ -532,7 +619,7 @@ endfunction
 
             for (i = 0; i < 8; i++) begin //[inst] - hwMAC64 rs1, rs2
                 for (j = 0; j < 8; j++) begin
-                    T[i][j] <= T[i][j] + (a_q[i] * b_q[j]);
+                    T[i][j] <= sat16_add(T[i][j], fp4_mul_quanta(a_fp4[i], b_fp4[j]));
                 end
             end
         end
