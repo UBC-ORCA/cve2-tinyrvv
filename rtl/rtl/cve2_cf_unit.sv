@@ -41,7 +41,8 @@ module cve2_cf_unit (
     logic [1:0] mv_op_i;
     logic [2:0] add_row_i;
 
-    assign add_row_i = req_instr_i[19:15][2:0];
+
+    assign add_row_i = req_instr_i[17:15]; //  req_instr_i[19:15][2:0]
 
     logic [4:0] mv_row  = req_instr_i[19:15];
     logic [4:0] mv_pair = req_instr_i[24:20];

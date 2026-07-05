@@ -141,9 +141,9 @@ module fp4_mac8x8_gen1 (
      **************************************************************************/
     logic signed [15:0] T [0:7][0:7];
 
-// --- [stev] ---
-logic dump_next; //quick debug flag
-// --- [end] ---
+    // --- [stev] ---
+    // logic dump_next; //quick debug flag
+    // --- [end] ---
 
     /**************************************************************************
      * UNPACKED FP4 NIBBLES
@@ -381,16 +381,16 @@ endfunction
                     T[i][j] <= '0;
                 end
             end
-// --- [stev] ---
-dump_next <= 0; //quick debug flag
-// --- [end] ---
 
-  mv_data_o <= 32'h0;
+            // --- [stev] ---
+            // dump_next <= 0; //quick debug flag
+            // --- [end] ---
 
+            mv_data_o <= 32'h0;
 
-        end else if (clear_i) begin //[inst] - zzMAC64 
+        end else if (clear_i) begin //[inst] - zzMAC64
             // Synchronous clear also zeros the entire tile.
-    $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
+            $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
 
             for (i = 0; i < 8; i++) begin
                 for (j = 0; j < 8; j++) begin
@@ -398,16 +398,15 @@ dump_next <= 0; //quick debug flag
                 end
             end
 
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-	
-	end else if (max_en_i) begin
+            // --- [stev] ---
+            // dump_next <= 1'b1;
+            // --- [end] ---
 
-    $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
+        end else if (max_en_i) begin
+            $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
+            // --- [stev] ---
+            // dump_next <= 1'b1;
+            // --- [end] ---
 
             // ----------------------------------------------------
             // maxMAC64:
@@ -423,105 +422,99 @@ dump_next <= 1'b1;
                 end
             end
 
+        end else if (mv_en_i) begin
+            /**************************************************************************
+            * Signals and functions for:
+            * 1) mvoMAC64 rd, rs1, rs2
+            * 2) mveMAC64 rd, rs1, rs2
+            * 3) mv2MAC64 rd, rs1, rs2
+            **************************************************************************/
+            unique case (mv_op_i)
+                MV_EVEN: begin
+                    mv_data_o <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
+                                  T[mv_row_idx][mv_even_col_idx]};
 
-  end else if (mv_en_i) begin
-    /**************************************************************************
-     * Signals and functions for:
-     * 1) mvoMAC64 rd, rs1, rs2 
-     * 2) mveMAC64 rd, rs1, rs2 
-     * 3) mv2MAC64 rd, rs1, rs2 
-     **************************************************************************/
+                    T[mv_row_idx][mv_even_col_idx] <= '0;
+                end
 
-    unique case (mv_op_i)
-      MV_EVEN: begin
-      mv_data_o <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
-                    T[mv_row_idx][mv_even_col_idx]};
+                MV_ODD: begin
+                    mv_data_o <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
+                                  T[mv_row_idx][mv_odd_col_idx]};
 
-        T[mv_row_idx][mv_even_col_idx] <= '0;
-      end
+                    T[mv_row_idx][mv_odd_col_idx] <= '0;
+                end
 
-      MV_ODD: begin
-      mv_data_o <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
-                    T[mv_row_idx][mv_odd_col_idx]};
+                MV_PAIR: begin
+                    // --- [stev] ---
+                    $display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
+                    $display("mv_op_i        = %0d", mv_op_i);
+                    $display("mv_row_i       = %0d", mv_row_i);
+                    $display("mv_pair_i      = %0d", mv_pair_i);
 
-        T[mv_row_idx][mv_odd_col_idx] <= '0;
-      end
+                    $display("mv_row_idx     = %0d", mv_row_idx);
+                    $display("mv_pair_idx    = %0d", mv_pair_idx);
+                    $display("mv_even_col    = %0d", mv_even_col_idx);
+                    $display("mv_odd_col     = %0d", mv_odd_col_idx);
 
-      MV_PAIR: begin
-// --- [stev] ---
-$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
-$display("mv_op_i        = %0d", mv_op_i);
-$display("mv_row_i       = %0d", mv_row_i);
-$display("mv_pair_i      = %0d", mv_pair_i);
+                    $display("T[%0d][%0d] (even) = 0x%04h",
+                            mv_row_idx, mv_even_col_idx,
+                            T[mv_row_idx][mv_even_col_idx]);
 
-$display("mv_row_idx     = %0d", mv_row_idx);
-$display("mv_pair_idx    = %0d", mv_pair_idx);
-$display("mv_even_col    = %0d", mv_even_col_idx);
-$display("mv_odd_col     = %0d", mv_odd_col_idx);
+                    $display("T[%0d][%0d] (odd)  = 0x%04h",
+                            mv_row_idx, mv_odd_col_idx,
+                            T[mv_row_idx][mv_odd_col_idx]);
 
-$display("T[%0d][%0d] (even) = 0x%04h",
-         mv_row_idx, mv_even_col_idx,
-         T[mv_row_idx][mv_even_col_idx]);
+                    $display("mv_data_o = 0x%08h",
+                            {T[mv_row_idx][mv_odd_col_idx],
+                            T[mv_row_idx][mv_even_col_idx]});
+                    $display("========== [fp4_mac8x8_gen1] ====================");
 
-$display("T[%0d][%0d] (odd)  = 0x%04h",
-         mv_row_idx, mv_odd_col_idx,
-         T[mv_row_idx][mv_odd_col_idx]);
+                    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
 
-$display("mv_data_o = 0x%08h",
-         {T[mv_row_idx][mv_odd_col_idx],
-          T[mv_row_idx][mv_even_col_idx]});
-$display("========== [fp4_mac8x8_gen1] ====================");
+                    // dump_next <= 1'b1;
+                    // --- [end] ---
 
-    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
+                    mv_data_o <= {T[mv_row_idx][mv_odd_col_idx],
+                                  T[mv_row_idx][mv_even_col_idx]};
 
-dump_next <= 1'b1;
-// --- [end] ---
+                    T[mv_row_idx][mv_even_col_idx] <= '0;
+                    T[mv_row_idx][mv_odd_col_idx]  <= '0;
+                end
 
-      mv_data_o <= {T[mv_row_idx][mv_odd_col_idx],
-                   T[mv_row_idx][mv_even_col_idx]};
+                default: begin
+                end
+            endcase
 
-        T[mv_row_idx][mv_even_col_idx] <= '0;
-        T[mv_row_idx][mv_odd_col_idx]  <= '0;
-      end
+        end else if (ld2_en_i) begin
+            /**************************************************************************
+            * Signals and functions for:
+            * 1) ld2MAC64 rs2, IMM12(rs1)
+            * 2) st2MAC64 rs2, IMM12(rs1)
+            **************************************************************************/
+            T[tm_row_idx][tm_even_col_idx] <= ld2_data_i[15:0];
+            T[tm_row_idx][tm_odd_col_idx]  <= ld2_data_i[31:16];
 
-      default: begin
-      end
-    endcase
-  
+        end else if (st2_en_i) begin
+            T[tm_row_idx][tm_even_col_idx] <= '0;
+            T[tm_row_idx][tm_odd_col_idx]  <= '0;
 
-end else if (ld2_en_i) begin
-    /**************************************************************************
-     * Signals and functions for:
-     * 1) ld2MAC64 rs2, IMM12(rs1) 
-     * 2) st2MAC64 rs2, IMM12(rs1)
-     **************************************************************************/
+        end else if (add_en_i) begin
+            $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
+            // --- [stev] ---
+            // dump_next <= 1'b1;
+            // --- [end] ---
 
-  T[tm_row_idx][tm_even_col_idx] <= ld2_data_i[15:0];
-  T[tm_row_idx][tm_odd_col_idx]  <= ld2_data_i[31:16];
-
-end else if (st2_en_i) begin
-  T[tm_row_idx][tm_even_col_idx] <= '0;
-  T[tm_row_idx][tm_odd_col_idx]  <= '0;
-
-
-	end else if (add_en_i) begin
-
-    $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-
-    	// ----------------------------------------------------
-    	// addMAC64 rs1, rs2
-    	//
-    	// row = add_row_i (from instruction field rs1[2:0])
-    	// scalar = rs2[15:0]
-    	//
-    	// T[row][j] += scalar (saturating)
-    	// ----------------------------------------------------
-    	for (j = 0; j < 8; j++) begin
-        	T[add_row_i][j] <= sat16_add(T[add_row_i][j], add_scalar);
-    	end
+            // ----------------------------------------------------
+            // addMAC64 rs1, rs2
+            //
+            // row = add_row_i (from instruction field rs1[2:0])
+            // scalar = rs2[15:0]
+            //
+            // T[row][j] += scalar (saturating)
+            // ----------------------------------------------------
+            for (j = 0; j < 8; j++) begin
+                T[add_row_i][j] <= sat16_add(T[add_row_i][j], add_scalar);
+            end
 
         end else if (mac_en_i) begin
             // One MAC instruction = one outer-product accumulate.
@@ -532,11 +525,10 @@ dump_next <= 1'b1;
             //
             // So the result is:
             //   T[row][col] += A_q[row] * B_q[col]
-    $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
-// --- [stev] ---
-dump_next <= 1'b1;
-// --- [end] ---
-
+            $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
+            // --- [stev] ---
+            // dump_next <= 1'b1;
+            // --- [end] ---
 
             for (i = 0; i < 8; i++) begin //[inst] - hwMAC64 rs1, rs2
                 for (j = 0; j < 8; j++) begin
@@ -545,42 +537,41 @@ dump_next <= 1'b1;
             end
         end
 
-// --- [stev] ---
-if (dump_next) begin
-    dump_next <= 1'b0;
-    $display("[fp4_mac8x8_gen1] AFTER MAC INST");
-for (i = 0; i < 8; i++) begin
-        for (j = 0; j < 8; j++) begin
-          $write("%0d ", T[i][j]);
-        end
-        $write("\n");
-      end
+        // --- [stev] ---
+        // if (dump_next) begin
+        //     dump_next <= 1'b0;
+        //     $display("[fp4_mac8x8_gen1] AFTER MAC INST");
+        //     for (i = 0; i < 8; i++) begin
+        //         for (j = 0; j < 8; j++) begin
+        //             $write("%0d ", T[i][j]);
+        //         end
+        //         $write("\n");
+        //     end
 
-$display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
-$display("mv_op_i        = %0d", mv_op_i);
-$display("mv_row_i       = %0d", mv_row_i);
-$display("mv_pair_i      = %0d", mv_pair_i);
+        //     $display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
+        //     $display("mv_op_i        = %0d", mv_op_i);
+        //     $display("mv_row_i       = %0d", mv_row_i);
+        //     $display("mv_pair_i      = %0d", mv_pair_i);
 
-$display("mv_row_idx     = %0d", mv_row_idx);
-$display("mv_pair_idx    = %0d", mv_pair_idx);
-$display("mv_even_col    = %0d", mv_even_col_idx);
-$display("mv_odd_col     = %0d", mv_odd_col_idx);
+        //     $display("mv_row_idx     = %0d", mv_row_idx);
+        //     $display("mv_pair_idx    = %0d", mv_pair_idx);
+        //     $display("mv_even_col    = %0d", mv_even_col_idx);
+        //     $display("mv_odd_col     = %0d", mv_odd_col_idx);
 
-$display("T[%0d][%0d] (even) = 0x%04h",
-         mv_row_idx, mv_even_col_idx,
-         T[mv_row_idx][mv_even_col_idx]);
+        //     $display("T[%0d][%0d] (even) = 0x%04h",
+        //             mv_row_idx, mv_even_col_idx,
+        //             T[mv_row_idx][mv_even_col_idx]);
 
-$display("T[%0d][%0d] (odd)  = 0x%04h",
-         mv_row_idx, mv_odd_col_idx,
-         T[mv_row_idx][mv_odd_col_idx]);
+        //     $display("T[%0d][%0d] (odd)  = 0x%04h",
+        //             mv_row_idx, mv_odd_col_idx,
+        //             T[mv_row_idx][mv_odd_col_idx]);
 
-$display("mv_data_o = 0x%08h",
-         {T[mv_row_idx][mv_odd_col_idx],
-          T[mv_row_idx][mv_even_col_idx]});
-$display("========== [fp4_mac8x8_gen1] ====================");
-
-  end
-// --- [end] ---
+        //     $display("mv_data_o = 0x%08h",
+        //             {T[mv_row_idx][mv_odd_col_idx],
+        //             T[mv_row_idx][mv_even_col_idx]});
+        //     $display("========== [fp4_mac8x8_gen1] ====================");
+        // end
+        // --- [end] ---
 
     end
 
