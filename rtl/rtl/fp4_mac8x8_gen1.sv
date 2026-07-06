@@ -1,4 +1,83 @@
 `timescale 1ns/1ps
+
+
+
+/*********************************************
+ * Saturating adder helper module
+ * -------------------------------------------
+ * Adds 2 signed 16-bit numbers, and caps them 
+ * on INT16.MAX or INT16.MIN upon 
+ * overflow
+ *
+ ********************************************/
+
+typedef enum logic {
+    sat16_mac_add,
+    sat16_mac_cmp
+} sat16_mode;
+
+module sat16_add (
+    input  logic signed [15:0] int16a_in,
+    input  logic signed [15:0] int16b_in,
+    input  sat16_mode          mode,
+
+    output logic signed [15:0] out16b_out,
+    
+    // Only valid in sat16_mac_add mode
+    // output logic               status_ov,
+
+    // Only valid in sat16_mac_cmp mode
+    output logic               status_gt
+);
+
+    logic signed [16:0] opA, opB;
+    logic signed [16:0] tmp;
+    logic status_ov;
+
+    always_comb begin
+        // Explicit sign extension
+        opA = {int16a_in[15], int16a_in};
+
+        unique case (mode)
+            sat16_mac_add:
+                opB = {int16b_in[15], int16b_in};
+
+            sat16_mac_cmp:
+                opB = -{int16b_in[15], int16b_in};
+        endcase
+
+        tmp = opA + opB;
+
+        unique case (mode)
+            sat16_mac_add: begin
+                if (tmp > 17'sd32767) begin
+                    out16b_out = 16'sd32767;
+                    status_ov  = 1'b1;
+                end
+                else if (tmp < -17'sd32768) begin
+                    out16b_out = -16'sd32768;
+                    status_ov  = 1'b1;
+                end
+                else begin
+                    out16b_out = tmp[15:0];
+                    status_ov  = 1'b0;
+                end
+
+                status_gt = 1'b0;
+            end 
+            sat16_mac_cmp: begin
+                // Compare mode
+                out16b_out = tmp[15:0];    // Unused if desired
+                status_gt  =  ~tmp[16];
+            end
+
+        endcase
+    end
+
+endmodule
+
+
+
 /******************************************************************************
  * fp4_mac8x8_gen1.sv
  *
@@ -140,6 +219,7 @@ module fp4_mac8x8_gen1 (
      *   T[r][c] += A_q[r] * B_q[c]
      **************************************************************************/
     logic signed [15:0] T [0:7][0:7];
+    logic signed [15:0] T_q [0:7][0:7];
 
     // --- [stev] ---
     // logic dump_next; //quick debug flag
@@ -158,6 +238,12 @@ module fp4_mac8x8_gen1 (
      **************************************************************************/
     logic [3:0] a_fp4 [0:7];
     logic [3:0] b_fp4 [0:7];
+    
+    /* Additive operand to the MAC */
+    logic signed [15:0] c_int16_ac [0:7][0:7];
+    
+    logic signed [15:0] sat16_add_q [0:7][0:7];
+    logic signed [15:0] sat16_stat_gt [0:7][0:7];
 
     /**************************************************************************
      * DECODED SIGNED QUANTA VALUES
@@ -174,6 +260,8 @@ module fp4_mac8x8_gen1 (
      **************************************************************************/
     // logic signed [4:0] a_q [0:7];
     // logic signed [4:0] b_q [0:7];
+
+    sat16_mode sat16_add_mode;
 
 
     function automatic logic signed [8:0] fp4_mul_quanta(
@@ -321,12 +409,25 @@ module fp4_mac8x8_gen1 (
      *
      * We use a generate block so the intent is very explicit and compact.
      **************************************************************************/
-    genvar g;
+    genvar g, h;
     generate
         for (g = 0; g < 8; g++) begin : GEN_UNPACK
             assign a_fp4[g] = a_packed_i[g*4 +: 4];
             assign b_fp4[g] = b_packed_i[g*4 +: 4];
+
+            for (h = 0; h < 8; h++) begin : GEN_c_int16_ac
+                sat16_add sat16_mac_add(
+                    .int16a_in(T[g][h]),
+                    .int16b_in(c_int16_ac[g][h]),
+                    .mode(sat16_add_mode),
+                    .out16b_out(sat16_add_q[g][h]),
+                    .status_gt(sat16_add_gt[g][h])  
+                );
+            end
+
         end
+
+        
     endgenerate
 
     /**************************************************************************
@@ -353,22 +454,22 @@ module fp4_mac8x8_gen1 (
     /**************************************************************************
      * Signals and functions for addMAC64 rs1, rs2
      **************************************************************************/
-function automatic logic signed [15:0] sat16_add (
-    input logic signed [15:0] a,
-    input logic signed [15:0] b
-);
-    logic signed [16:0] tmp;
-    begin
-        tmp = a + b;
+// function automatic logic signed [15:0] sat16_add (
+//     input logic signed [15:0] a,
+//     input logic signed [15:0] b
+// );
+//     logic signed [16:0] tmp;
+//     begin
+//         tmp = a + b;
 
-        if (tmp > 32767)
-            sat16_add = 16'sd32767; // signed int16 max = 32767, min = -32768
-        else if (tmp < -32768)
-            sat16_add = -16'sd32768;
-        else
-            sat16_add = tmp[15:0];
-    end
-endfunction
+//         if (tmp > 32767)
+//             sat16_add = 16'sd32767; // signed int16 max = 32767, min = -32768
+//         else if (tmp < -32768)
+//             sat16_add = -16'sd32768;
+//         else
+//             sat16_add = tmp[15:0];
+//     end
+// endfunction
 
 	logic signed [15:0] add_scalar;
 	assign add_scalar = b_packed_i[15:0];
@@ -475,153 +576,8 @@ endfunction
 
             mv_data_o <= 32'h0;
 
-        end else if (clear_i) begin //[inst] - zzMAC64
-            // Synchronous clear also zeros the entire tile.
-            $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
-
-            for (i = 0; i < 8; i++) begin
-                for (j = 0; j < 8; j++) begin
-                    T[i][j] <= '0;
-                end
-            end
-
-            // --- [stev] ---
-            // dump_next <= 1'b1;
-            // --- [end] ---
-
-        end else if (max_en_i) begin
-            $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
-            // --- [stev] ---
-            // dump_next <= 1'b1;
-            // --- [end] ---
-
-            // ----------------------------------------------------
-            // maxMAC64:
-            // T[i][j] = max(T[i][j], scalar)
-            // scalar comes from rs1[15:0]
-            // ----------------------------------------------------
-            for (i = 0; i < 8; i++) begin
-                for (j = 0; j < 8; j++) begin
-                    if ($signed(T[i][j]) < max_scalar)
-                        T[i][j] <= max_scalar;
-                    else
-                        T[i][j] <= T[i][j];
-                end
-            end
-
-        end else if (mv_en_i) begin
-            /**************************************************************************
-            * Signals and functions for:
-            * 1) mvoMAC64 rd, rs1, rs2
-            * 2) mveMAC64 rd, rs1, rs2
-            * 3) mv2MAC64 rd, rs1, rs2
-            **************************************************************************/
-            unique case (mv_op_i)
-                MV_EVEN: begin
-                    mv_data_o <= {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
-                                  T[mv_row_idx][mv_even_col_idx]};
-
-                    T[mv_row_idx][mv_even_col_idx] <= '0;
-                end
-
-                MV_ODD: begin
-                    mv_data_o <= {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
-                                  T[mv_row_idx][mv_odd_col_idx]};
-
-                    T[mv_row_idx][mv_odd_col_idx] <= '0;
-                end
-
-                MV_PAIR: begin
-                    // --- [stev] ---
-                    $display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
-                    $display("mv_op_i        = %0d", mv_op_i);
-                    $display("mv_row_i       = %0d", mv_row_i);
-                    $display("mv_pair_i      = %0d", mv_pair_i);
-
-                    $display("mv_row_idx     = %0d", mv_row_idx);
-                    $display("mv_pair_idx    = %0d", mv_pair_idx);
-                    $display("mv_even_col    = %0d", mv_even_col_idx);
-                    $display("mv_odd_col     = %0d", mv_odd_col_idx);
-
-                    $display("T[%0d][%0d] (even) = 0x%04h",
-                            mv_row_idx, mv_even_col_idx,
-                            T[mv_row_idx][mv_even_col_idx]);
-
-                    $display("T[%0d][%0d] (odd)  = 0x%04h",
-                            mv_row_idx, mv_odd_col_idx,
-                            T[mv_row_idx][mv_odd_col_idx]);
-
-                    $display("mv_data_o = 0x%08h",
-                            {T[mv_row_idx][mv_odd_col_idx],
-                            T[mv_row_idx][mv_even_col_idx]});
-                    $display("========== [fp4_mac8x8_gen1] ====================");
-
-                    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
-
-                    // dump_next <= 1'b1;
-                    // --- [end] ---
-
-                    mv_data_o <= {T[mv_row_idx][mv_odd_col_idx],
-                                  T[mv_row_idx][mv_even_col_idx]};
-
-                    T[mv_row_idx][mv_even_col_idx] <= '0;
-                    T[mv_row_idx][mv_odd_col_idx]  <= '0;
-                end
-
-                default: begin
-                end
-            endcase
-
-        end else if (ld2_en_i) begin
-            /**************************************************************************
-            * Signals and functions for:
-            * 1) ld2MAC64 rs2, IMM12(rs1)
-            * 2) st2MAC64 rs2, IMM12(rs1)
-            **************************************************************************/
-            T[tm_row_idx][tm_even_col_idx] <= ld2_data_i[15:0];
-            T[tm_row_idx][tm_odd_col_idx]  <= ld2_data_i[31:16];
-
-        end else if (st2_en_i) begin
-            T[tm_row_idx][tm_even_col_idx] <= '0;
-            T[tm_row_idx][tm_odd_col_idx]  <= '0;
-
-        end else if (add_en_i) begin
-            $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
-            // --- [stev] ---
-            // dump_next <= 1'b1;
-            // --- [end] ---
-
-            // ----------------------------------------------------
-            // addMAC64 rs1, rs2
-            //
-            // row = add_row_i (from instruction field rs1[2:0])
-            // scalar = rs2[15:0]
-            //
-            // T[row][j] += scalar (saturating)
-            // ----------------------------------------------------
-            for (j = 0; j < 8; j++) begin
-                T[add_row_i][j] <= sat16_add(T[add_row_i][j], add_scalar);
-            end
-
-        end else if (mac_en_i) begin
-            // One MAC instruction = one outer-product accumulate.
-            //
-            // IMPORTANT on dimensions:
-            //   - A contributes the ROW dimension
-            //   - B contributes the COLUMN dimension
-            //
-            // So the result is:
-            //   T[row][col] += A_q[row] * B_q[col]
-            $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
-            // --- [stev] ---
-            // dump_next <= 1'b1;
-            // --- [end] ---
-
-            for (i = 0; i < 8; i++) begin //[inst] - hwMAC64 rs1, rs2
-                for (j = 0; j < 8; j++) begin
-                    T[i][j] <= sat16_add(T[i][j], fp4_mul_quanta(a_fp4[i], b_fp4[j]));
-                end
-            end
+        end else begin
+            T <= T_q;
         end
 
         // --- [stev] ---
@@ -690,9 +646,26 @@ endfunction
         logic [1:0] pair_idx;
         logic [2:0] col0, col1;
 
-        rd_data_o = 32'h0000_0000;
+        /* Default values */
+        begin : COMB_DEFAULTS
+            T_q = T;
 
-        if (rd_en_i) begin
+            for (i = 0; i < 8; ++i) begin
+                for (j = 0; j < 8; ++j) begin
+                    c_int16_ac[i][j] = '0;
+                end
+            end 
+
+            sat16_add_mode = sat16_mac_add; 
+            rd_data_o = 32'h0000_0000;
+        end : COMB_DEFAULTS
+
+        if (clear_i) begin
+            // Synchronous clear also zeros the entire tile.
+            $display("[fp4_mac8x8_gen1] zzMAC64 triggered ...");
+            T_q[i][j] = '0;
+
+        end else if (rd_en_i) begin
             row      = rd_addr_i[4:2];
             pair_idx = rd_addr_i[1:0];
 
@@ -701,7 +674,155 @@ endfunction
 
             // Pack high halfword = later column, low halfword = earlier column.
             rd_data_o = {T[row][col1], T[row][col0]};
+        
+        /* Combinational logic for the MAC */   
+        end else if (mv_en_i) begin 
+            /**************************************************************************
+            * Signals and functions for:
+            * 1) mvoMAC64 rd, rs1, rs2
+            * 2) mveMAC64 rd, rs1, rs2
+            * 3) mv2MAC64 rd, rs1, rs2
+            **************************************************************************/
+            unique case (mv_op_i)
+                MV_EVEN: begin
+                    mv_data_o = {{16{T[mv_row_idx][mv_even_col_idx][15]}}, //[stev] - sign extension to 32 bits here, need to check
+                                  T[mv_row_idx][mv_even_col_idx]};
+
+                    T_q[mv_row_idx][mv_even_col_idx] = '0;
+                end
+
+                MV_ODD: begin 
+                    mv_data_o = {{16{T[mv_row_idx][mv_odd_col_idx][15]}},
+                                  T[mv_row_idx][mv_odd_col_idx]};
+
+                    T_q[mv_row_idx][mv_odd_col_idx] = '0;
+                end
+
+                MV_PAIR: begin
+                    // --- [stev] ---
+                    $display("========== [fp4_mac8x8_gen1] MV DEBUG ==========");
+                    $display("mv_op_i        = %0d", mv_op_i);
+                    $display("mv_row_i       = %0d", mv_row_i);
+                    $display("mv_pair_i      = %0d", mv_pair_i);
+
+                    $display("mv_row_idx     = %0d", mv_row_idx);
+                    $display("mv_pair_idx    = %0d", mv_pair_idx);
+                    $display("mv_even_col    = %0d", mv_even_col_idx);
+                    $display("mv_odd_col     = %0d", mv_odd_col_idx);
+
+                    $display("T[%0d][%0d] (even) = 0x%04h",
+                            mv_row_idx, mv_even_col_idx,
+                            T[mv_row_idx][mv_even_col_idx]);
+
+                    $display("T[%0d][%0d] (odd)  = 0x%04h",
+                            mv_row_idx, mv_odd_col_idx,
+                            T[mv_row_idx][mv_odd_col_idx]);
+
+                    $display("mv_data_o = 0x%08h",
+                            {T[mv_row_idx][mv_odd_col_idx],
+                            T[mv_row_idx][mv_even_col_idx]});
+                    $display("========== [fp4_mac8x8_gen1] ====================");
+
+                    $display("[fp4_mac8x8_gen1] mv2MAC64 triggered ...");
+
+                    // dump_next <= 1'b1;
+                    // --- [end] ---
+
+                    mv_data_o = {T[mv_row_idx][mv_odd_col_idx],
+                                  T[mv_row_idx][mv_even_col_idx]};
+
+                    T_q[mv_row_idx][mv_even_col_idx] = '0;
+                    T_q[mv_row_idx][mv_odd_col_idx]  = '0;
+                end
+            endcase            
+        end else if (ld2_en_i) begin
+            /**************************************************************************
+            * Signals and functions for:
+            * 1) ld2MAC64 rs2, IMM12(rs1)
+            * 2) st2MAC64 rs2, IMM12(rs1)
+            **************************************************************************/
+            T_q[tm_row_idx][tm_even_col_idx] = ld2_data_i[15:0];
+            T_q[tm_row_idx][tm_odd_col_idx]  = ld2_data_i[31:16];
+
+        end else if (st2_en_i) begin
+            T_q[tm_row_idx][tm_even_col_idx] = '0;
+            T_q[tm_row_idx][tm_odd_col_idx]  = '0;
+
+        end else if (max_en_i) begin
+            // ----------------------------------------------------
+            // maxMAC64:
+            // T[i][j] = max(T[i][j], scalar)
+            // scalar comes from rs1[15:0]
+            // ----------------------------------------------------
+            $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
+            for (i = 0; i < 8; ++i) begin
+                for (j = 0; j < 8; ++j) begin
+                    c_int16_ac[i][j] = max_scalar;           
+                end    
+            end 
+
+            /* set adder to compare mode */
+            sat16_add_mode = sat16_mac_cmp;
+
+            /* 
+                Next value of T computation, 
+                compares if T > max_scalar
+             */
+
+            for (i = 0; i < 8; ++i) begin
+                for (j = 0; j < 8; ++j) begin
+                    T_q[i][j] = 
+                        sat16_stat_gt[i][j] ? T[i][j] : max_scalar;            
+                end    
+            end 
+             
+        end else if (add_en_i) begin
+
+            // ----------------------------------------------------
+            // addMAC64 rs1, rs2
+            //
+            // row = add_row_i (from instruction field rs1[2:0])
+            // scalar = rs2[15:0]
+            //
+            // T[row][j] += scalar (saturating)
+            // ----------------------------------------------------
+            $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
+            sat16_add_mode = sat16_mac_add;
+            for (j = 0; j < 8; ++j) begin
+                c_int16_ac[add_row_i][j] = add_scalar;           
+            end    
+
+            /* 
+                Next value of T computation, 
+                is T_old + scalar
+             */
+            for (j = 0; j < 8; ++j) begin
+                T_q[add_row_i][j] = sat16_add_q[add_row_i][j];
+            end       
+        end else if (mac_en_i) begin 
+            // One MAC instruction = one outer-product accumulate.
+            //
+            // IMPORTANT on dimensions:
+            //   - A contributes the ROW dimension
+            //   - B contributes the COLUMN dimension
+            //
+            // So the result is:
+            //   T[row][col] += A_q[row] * B_q[col]
+            $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
+            sat16_add_mode = sat16_mac_add;
+            for (j = 0; j < 8; ++j) begin
+                /* Set accumulator operand to be a * b, then sign extend it. */
+                logic [8:0] fp4_mul_res = fp4_mul_quanta(a_fp4[i], b_fp4[j]);
+                c_int16_ac[add_row_i][j] = {fp4_mul_res[8], fp4_mul_res[8:0]};           
+            end
+
+            for (j = 0; j < 8; ++j) begin
+                T_q[add_row_i][j] = sat16_add_q[add_row_i][j];
+            end
+
         end
+
+
     end
 
 
