@@ -243,7 +243,7 @@ module fp4_mac8x8_gen1 (
     logic signed [15:0] c_int16_ac [0:7][0:7];
     
     logic signed [15:0] sat16_add_q [0:7][0:7];
-    logic signed [15:0] sat16_stat_gt [0:7][0:7];
+    logic sat16_stat_gt [0:7][0:7];
 
     /**************************************************************************
      * DECODED SIGNED QUANTA VALUES
@@ -421,7 +421,7 @@ module fp4_mac8x8_gen1 (
                     .int16b_in(c_int16_ac[g][h]),
                     .mode(sat16_add_mode),
                     .out16b_out(sat16_add_q[g][h]),
-                    .status_gt(sat16_add_gt[g][h])  
+                    .status_gt(sat16_stat_gt[g][h])  
                 );
             end
 
@@ -574,7 +574,7 @@ module fp4_mac8x8_gen1 (
             // dump_next <= 0; //quick debug flag
             // --- [end] ---
 
-            mv_data_o <= 32'h0;
+            // mv_data_o <= 32'h0;
 
         end else begin
             T <= T_q;
@@ -650,8 +650,8 @@ module fp4_mac8x8_gen1 (
         begin : COMB_DEFAULTS
             T_q = T;
 
-            for (i = 0; i < 8; ++i) begin
-                for (j = 0; j < 8; ++j) begin
+            for (int i = 0; i < 8; ++i) begin
+                for (int j = 0; j < 8; ++j) begin
                     c_int16_ac[i][j] = '0;
                 end
             end 
@@ -755,8 +755,8 @@ module fp4_mac8x8_gen1 (
             // scalar comes from rs1[15:0]
             // ----------------------------------------------------
             $display("[fp4_mac8x8_gen1] maxMAC64 triggered ...");
-            for (i = 0; i < 8; ++i) begin
-                for (j = 0; j < 8; ++j) begin
+            for (int i = 0; i < 8; ++i) begin
+                for (int j = 0; j < 8; ++j) begin
                     c_int16_ac[i][j] = max_scalar;           
                 end    
             end 
@@ -769,8 +769,8 @@ module fp4_mac8x8_gen1 (
                 compares if T > max_scalar
              */
 
-            for (i = 0; i < 8; ++i) begin
-                for (j = 0; j < 8; ++j) begin
+            for (int i = 0; i < 8; ++i) begin
+                for (int j = 0; j < 8; ++j) begin
                     T_q[i][j] = 
                         sat16_stat_gt[i][j] ? T[i][j] : max_scalar;            
                 end    
@@ -788,7 +788,7 @@ module fp4_mac8x8_gen1 (
             // ----------------------------------------------------
             $display("[fp4_mac8x8_gen1] addMAC64 triggered ...");
             sat16_add_mode = sat16_mac_add;
-            for (j = 0; j < 8; ++j) begin
+            for (int j = 0; j < 8; ++j) begin
                 c_int16_ac[add_row_i][j] = add_scalar;           
             end    
 
@@ -796,7 +796,7 @@ module fp4_mac8x8_gen1 (
                 Next value of T computation, 
                 is T_old + scalar
              */
-            for (j = 0; j < 8; ++j) begin
+            for (int j = 0; j < 8; ++j) begin
                 T_q[add_row_i][j] = sat16_add_q[add_row_i][j];
             end       
         end else if (mac_en_i) begin 
@@ -810,16 +810,14 @@ module fp4_mac8x8_gen1 (
             //   T[row][col] += A_q[row] * B_q[col]
             $display("[fp4_mac8x8_gen1] hwMAC64 triggered ...");
             sat16_add_mode = sat16_mac_add;
-            for (j = 0; j < 8; ++j) begin
-                /* Set accumulator operand to be a * b, then sign extend it. */
-                logic [8:0] fp4_mul_res = fp4_mul_quanta(a_fp4[i], b_fp4[j]);
-                c_int16_ac[add_row_i][j] = {fp4_mul_res[8], fp4_mul_res[8:0]};           
+            for (int i = 0; i < 8; ++i) begin
+                for (int j = 0; j < 8; ++j) begin
+                    /* Set accumulator operand to be a * b, then sign extend it. */
+                    logic [8:0] fp4_mul_res = fp4_mul_quanta(a_fp4[i], b_fp4[j]);
+                    c_int16_ac[i][j] = {fp4_mul_res[8], fp4_mul_res[8:0]};         
+                    T_q[i][j] = sat16_add_q[i][j];
+                end
             end
-
-            for (j = 0; j < 8; ++j) begin
-                T_q[add_row_i][j] = sat16_add_q[add_row_i][j];
-            end
-
         end
 
 
