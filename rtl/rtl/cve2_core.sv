@@ -846,7 +846,7 @@ end
 
 // --- [stev] ---
   // mac
-  cve2_cf_unit cf_unit_i (
+  cve2_cf_mac_unit cf_unit_i (
     .clk_i       (clk_i),
     .rst_ni      (rst_ni),
 

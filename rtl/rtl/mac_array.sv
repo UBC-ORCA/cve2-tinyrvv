@@ -129,5 +129,39 @@ module mac_array #(
 
     endgenerate
 
+// --- [stev] ---
+//============================================================
+// Simulation monitor
+//============================================================
+//`ifndef SYNTHESIS
+
+integer rr, cc;
+
+always_ff @(posedge clk) begin
+
+    $display("");
+    $display("======================================================");
+    $display("MAC Tile @ time %0t", $time);
+    $display("mac_en=%0b  clear=%0b", mac_en_i, clear_i);
+
+    for (rr = 0; rr < TT; rr++) begin
+
+        $write("Row %0d : ", rr);
+
+        for (cc = 0; cc < TT; cc++) begin
+            $write("%6d ", accum_o[rr][cc]);
+        end
+
+        $write("\n");
+
+    end
+
+    $display("======================================================");
+    $display("");
+
+end
+
+//`endif
+// --- [end] ---
 
 endmodule

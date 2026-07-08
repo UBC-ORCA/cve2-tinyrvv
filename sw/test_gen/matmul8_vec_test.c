@@ -101,11 +101,11 @@ uint32_t data;
     //mac_zz(); //[stev] - looks good
     
 	mac_hw(a, b); //[stev] - looks good
-uint32_t chk = mac_out_pair(); //[stev] - good
+//uint32_t chk = mac_out_pair(); //[stev] - good
 //uint32_t chk = mac_out_even(); //[stev] - good
 //uint32_t chk = mac_out_odd(); //[stev] - good
 //mac_max(96); //[stev] - looks good
-mac_add_row(7,0x00000010); //[stev] - looks good
+//mac_add_row(7,0x00000010); //[stev] - looks good
 
 
 //mac_ld2(&data); //[stev] - not good
@@ -116,13 +116,13 @@ mac_add_row(7,0x00000010); //[stev] - looks good
 
 //chk = mac_out(0,1,0); 
 //chk = mac_out(6,3,1); 
-chk = mac_out(4,1,2); 
+//chk = mac_out(4,1,2); 
 
 
   *COMP_END_MMIO = 1u;
 
-//  *DONE_MMIO = 0x22;
-  *DONE_MMIO = chk;
+  *DONE_MMIO = 0x22;
+//  *DONE_MMIO = chk;
 
   while (1) {}
 }

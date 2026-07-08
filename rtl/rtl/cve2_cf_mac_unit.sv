@@ -15,6 +15,27 @@
 
 module cve2_cf_mac_unit
 (
+
+// --- [stev] --- unused signals
+   output logic                     scalar_we_o,
+    output logic [4:0]               scalar_waddr_o,
+    output logic [31:0]              scalar_wdata_o,
+
+    output logic                     data_req_o,
+    input  logic                     data_gnt_i,
+    output logic [31:0]              data_addr_o,
+    output logic                     data_we_o,
+    output logic [3:0]               data_be_o,
+    output logic [31:0]              data_wdata_o,
+
+    input  logic [31:0]              data_rdata_i,
+    input  logic                     data_rvalid_i,
+    input  logic                     data_err_i,
+
+// --- [end] ---
+
+
+
     input  logic                     clk_i,
     input  logic                     rst_ni,
 

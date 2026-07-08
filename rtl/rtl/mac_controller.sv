@@ -22,7 +22,8 @@
 
 module mac_controller #(
 
-    parameter int VL = 32
+//    parameter int VL = 32
+    parameter int VL = 2 //[stev] - test out two cycles 
 
 )(
     input logic clk_i,
@@ -211,7 +212,8 @@ module mac_controller #(
 
             EXEC:
             begin
-                if(op_q == cve2_pkg::OP_MAC)
+                //if(op_q == cve2_pkg::OP_MAC)
+                if(op_q == cve2_pkg::OP_MAC) //[stev] - using the op_mac opcode
                     mac_en_o = 1;
             end
 
