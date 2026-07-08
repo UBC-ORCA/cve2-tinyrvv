@@ -5,10 +5,10 @@
  * TT × TT array of FP4 MAC cells.
  *
  * Responsibilities:
- *   - Distribute one activation vector across rows.
- *   - Distribute one weight vector across columns.
+ *   - Decode FP4 inputs into INT5 quanta.
+ *   - Broadcast activation quanta across rows.
+ *   - Broadcast weight quanta across columns.
  *   - Instantiate TT×TT identical MAC cells.
- *   - Expose the accumulator state of every MAC.
  *
  * This module is intentionally ISA-independent.
  ******************************************************************************/
@@ -49,6 +49,50 @@ module mac_array #(
 
 );
 
+
+    //----------------------------------------------------------
+    // Decoded INT5 quanta vectors
+    //----------------------------------------------------------
+
+    logic signed [4:0] act_q [0:TT-1];
+    logic signed [4:0] wt_q  [0:TT-1];
+
+
+    //----------------------------------------------------------
+    // FP4 decode
+    //
+    // Decode once per vector element.
+    //----------------------------------------------------------
+
+    genvar i;
+
+    generate
+
+        for (i = 0; i < TT; i++) begin : GEN_DECODER
+
+
+            fp4_decoder u_act_decoder (
+
+                .fp4_i    (act_i[i]),
+                .quanta_o (act_q[i])
+
+            );
+
+
+            fp4_decoder u_wt_decoder (
+
+                .fp4_i    (wt_i[i]),
+                .quanta_o (wt_q[i])
+
+            );
+
+
+        end
+
+    endgenerate
+
+
+
     //----------------------------------------------------------
     // Instantiate TT × TT MAC cells
     //----------------------------------------------------------
@@ -61,6 +105,7 @@ module mac_array #(
 
             for (c = 0; c < TT; c++) begin : GEN_COL
 
+
                 mac_cell u_mac (
 
                     .clk      (clk),
@@ -69,17 +114,20 @@ module mac_array #(
                     .mac_en_i (mac_en_i),
                     .clear_i  (clear_i),
 
-                    .act_i    (act_i[r]),
-                    .wt_i     (wt_i[c]),
+                    // decoded FP4 quanta
+                    .act_i    (act_q[r]),
+                    .wt_i     (wt_q[c]),
 
                     .accum_o  (accum_o[r][c])
 
                 );
+
 
             end
 
         end
 
     endgenerate
+
 
 endmodule
