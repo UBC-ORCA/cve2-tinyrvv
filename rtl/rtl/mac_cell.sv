@@ -13,11 +13,11 @@ module mac_cell (
     input  logic clear_i,
 
     //-----------------------------------------
-    // FP4 operands (INT5 rep)
+    // FP4 operands (FP4 rep)
     //-----------------------------------------
 
-    input  logic signed [4:0] act_i,
-    input  logic signed [4:0] wt_i,
+    input  logic [3:0] fp4_act_i,
+    input  logic [3:0] fp4_wt_i,
 
     //-----------------------------------------
     // Accumulator output
@@ -39,12 +39,10 @@ module mac_cell (
     // Multiplier
     //-----------------------------------------
 
-    fp4_multiplier u_mult (
-
-        .a_i(act_i),
-        .b_i(wt_i),
-        .product_o(product)
-
+    fused_fp4_mul_to_int5 fused_dec_mul(
+        .fp4_a_i(fp4_act_i), 
+        .fp4_b_i(fp4_wt_i), 
+        .int5_product_o(product)
     );
 
     //-----------------------------------------

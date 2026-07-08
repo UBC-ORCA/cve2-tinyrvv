@@ -54,8 +54,8 @@ module mac_array #(
     // Decoded INT5 quanta vectors
     //----------------------------------------------------------
 
-    logic signed [4:0] act_q [0:TT-1];
-    logic signed [4:0] wt_q  [0:TT-1];
+    // logic signed [4:0] act_q [0:TT-1];
+    // logic signed [4:0] wt_q  [0:TT-1];
 
 
     //----------------------------------------------------------
@@ -64,32 +64,32 @@ module mac_array #(
     // Decode once per vector element.
     //----------------------------------------------------------
 
-    genvar i;
+    // genvar i;
 
-    generate
+    // generate
 
-        for (i = 0; i < TT; i++) begin : GEN_DECODER
-
-
-            fp4_decoder u_act_decoder (
-
-                .fp4_i    (act_i[i]),
-                .quanta_o (act_q[i])
-
-            );
+    //     for (i = 0; i < TT; i++) begin : GEN_DECODER
 
 
-            fp4_decoder u_wt_decoder (
+    //         fp4_decoder u_act_decoder (
 
-                .fp4_i    (wt_i[i]),
-                .quanta_o (wt_q[i])
+    //             .fp4_i    (act_i[i]),
+    //             .quanta_o (act_q[i])
 
-            );
+    //         );
 
 
-        end
+    //         fp4_decoder u_wt_decoder (
 
-    endgenerate
+    //             .fp4_i    (wt_i[i]),
+    //             .quanta_o (wt_q[i])
+
+    //         );
+
+
+    //     end
+
+    // endgenerate
 
 
 
@@ -114,9 +114,9 @@ module mac_array #(
                     .mac_en_i (mac_en_i),
                     .clear_i  (clear_i),
 
-                    // decoded FP4 quanta
-                    .act_i    (act_q[r]),
-                    .wt_i     (wt_q[c]),
+                    // fp4 activation and weights
+                    .fp4_act_i    (act_i[r]),
+                    .fp4_wt_i     (wt_i[c]),
 
                     .accum_o  (accum_o[r][c])
 
