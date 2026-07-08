@@ -760,6 +760,19 @@ pair73:
     MV2MAC64(10,7,3)
     ret
 
+
+
+
+//TEMP
+.globl load_v0
+load_v0:
+    li      t0,8
+    RVV_VSETVLI(0,5,0x0D0)
+
+    RVV_VLE32(0,10)      # a0 points to data
+    ret
+
+
 //[end]
 
 

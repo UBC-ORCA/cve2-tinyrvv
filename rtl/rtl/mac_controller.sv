@@ -23,7 +23,7 @@
 module mac_controller #(
 
 //    parameter int VL = 32
-    parameter int VL = 2 //[stev] - test out two cycles 
+    parameter int VL = 8 //[stev] - test out two cycles 
 
 )(
     input logic clk_i,
@@ -54,6 +54,16 @@ module mac_controller #(
     output logic                 mac_en_o,
     output logic                 clear_o,
 
+// --- [stev] ---
+    input logic [4:0] vs1_i,
+    input logic [4:0] weight_blk_i,
+    input logic [31:0] base_i,
+
+output logic [4:0] mac_vrf_raddr_o,
+output  logic [2:0]   mac_vrf_relem_o,
+
+// --- [end] ---
+
     //----------------------------------------------------------
     // Operand interface
     //
@@ -64,6 +74,12 @@ module mac_controller #(
     output logic [31:0]          wt_data_o
 );
 
+// --- [stev] ---
+
+logic [4:0]  vs1_q;
+logic [4:0]  weight_blk_q;
+logic [31:0] base_q;
+// --- [end] ---
 
 
     //----------------------------------------------------------
@@ -117,6 +133,13 @@ module mac_controller #(
             op_q  <= cf_req_op_i;
             rs1_q <= rs1_i;
             rs2_q <= rs2_i;
+
+// --- [stev] ---
+
+	vs1_q <= vs1_i;
+    weight_blk_q <= weight_blk_i;
+    base_q       <= base_i;
+// --- [end] ---
 
         end
     end
@@ -203,6 +226,11 @@ module mac_controller #(
         act_data_o = rs1_q;
         wt_data_o  = rs2_q;
 
+// --- [stev] ---
+mac_vrf_raddr_o = '0;
+mac_vrf_relem_o = '0;
+// --- [end] ---
+
         case(state_q)
             IDLE:
             begin
@@ -213,8 +241,12 @@ module mac_controller #(
             EXEC:
             begin
                 //if(op_q == cve2_pkg::OP_MAC)
-                if(op_q == cve2_pkg::OP_MAC) //[stev] - using the op_mac opcode
+                if(op_q == cve2_pkg::OP_MAC) begin //[stev] - using the op_mac opcode
                     mac_en_o = 1;
+
+			mac_vrf_raddr_o = vs1_q; //[stev] 
+        		mac_vrf_relem_o = count_q;
+		end
             end
 
             DONE:

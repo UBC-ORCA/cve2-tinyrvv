@@ -60,7 +60,21 @@ module cve2_vec_unit #(
   output logic [31:0]  ex_operand_a_o,
   output logic [31:0]  ex_operand_b_o,
   input  logic [31:0]  ex_result_i,
-  input  logic         ex_valid_i
+  input  logic         ex_valid_i,
+
+// --- [stev] ---
+//------------------------------------------------------
+// MAC read interface
+//------------------------------------------------------
+
+// From CF MAC unit -> VRF
+//input  logic        mac_vrf_re_i,
+input  logic [4:0]  mac_vrf_raddr_i,
+input  logic [2:0]  mac_vrf_relem_i,
+
+// From VRF -> CF MAC unit
+output logic [31:0] mac_vrf_rdata_o
+// --- [end] ---
 );
 
   localparam int unsigned LANES   = VLEN / SEW;
@@ -139,7 +153,14 @@ module cve2_vec_unit #(
     .we_i         (v_we),
     .waddr_i      (v_waddr),
     .welem_i      (v_welem),
-    .wdata_i      (v_wdata)
+    .wdata_i      (v_wdata),
+
+// --- [stev] ---
+ .mac_raddr_i (mac_vrf_raddr_i),
+  .mac_relem_i (mac_vrf_relem_i),
+  .mac_rdata_o (mac_vrf_rdata_o)
+// --- [end] ---
+
   );
 
   // ----------------------

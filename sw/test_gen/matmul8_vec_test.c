@@ -68,7 +68,20 @@ int main(void) {
 
 */
 
+// --- [stev] ---
+extern void load_v0(uint32_t *ptr);
 
+uint32_t vec[8] = {
+    0x11111111,
+    0x22222222,
+    0x33333333,
+    0x44444444,
+    0x55555555,
+    0x66666666,
+    0x77777777,
+    0x88888888
+};
+// --- [end] ---
 
 extern void mac_zz(void);
 extern void mac_hw(uint32_t a, uint32_t b);
@@ -99,7 +112,7 @@ uint32_t data;
   *COMP_START_MMIO = 1u;
 
     //mac_zz(); //[stev] - looks good
-    
+     load_v0(vec);   // [stev] - fills v0
 	mac_hw(a, b); //[stev] - looks good
 //uint32_t chk = mac_out_pair(); //[stev] - good
 //uint32_t chk = mac_out_even(); //[stev] - good

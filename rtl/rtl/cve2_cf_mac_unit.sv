@@ -56,8 +56,36 @@ module cve2_cf_mac_unit
 
     output logic                     req_ready_o,
     output logic                     busy_o,
-    output logic                     done_o
+    output logic                     done_o,
+
+// --- [stev] ---
+output logic [4:0] mac_vrf_raddr_o,
+output  logic [2:0]   mac_vrf_relem_o,
+input logic [31:0]   mac_vrf_rdata_i
+
+// --- [end] ---
 );
+
+
+// --- [stev] ---
+    //------------------------------------------------------------
+    // Decoded VMAC instruction fields
+    //------------------------------------------------------------
+
+    // Temporary VMAC encoding:
+    // [11:7]   = vs1 (vector source register)
+    // [24:20]  = weight block index
+    // req_rs1_i = base pointer
+//TO BE RM
+    logic [4:0] vs1;
+    logic [4:0] weight_blk;
+    logic [31:0] weight_base;
+
+    assign vs1        = req_instr_i[11:7];
+    assign weight_blk = req_instr_i[24:20];
+    assign weight_base = req_rs1_i;
+
+// --- [end] ---
 
     localparam int TT = 8;
 
@@ -119,6 +147,18 @@ module cve2_cf_mac_unit
         .mac_en_o(mac_en),
         .clear_o(clear),
 
+// --- [stev] ---
+//TEMP 
+// New decoded VMAC fields
+        .vs1_i        (vs1),
+        .weight_blk_i (weight_blk),
+        .base_i       (weight_base),
+
+.mac_vrf_raddr_o(mac_vrf_raddr_o),
+.mac_vrf_relem_o(mac_vrf_relem_o),
+
+// --- [end] ---
+
         .req_ready_o(req_ready_o),
         .busy_o(busy_o),
         .done_o(done_o)
@@ -145,5 +185,36 @@ module cve2_cf_mac_unit
 
         .accum_o(tile_accum)
     );
+
+// --- [stev] ---
+//------------------------------------------------------------
+// Debug: MAC VRF read port
+//------------------------------------------------------------
+//`ifdef VEC_DEBUG
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[MAC_VRF] addr=v%0d elem=%0d data=%08x",
+                 mac_vrf_raddr_o,
+                 mac_vrf_relem_o,
+                 mac_vrf_rdata_i);
+    end
+end
+//`endif
+
+//`ifdef VEC_DEBUG
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [MAC_VRF] raddr=v%0d relem=%0d rdata=%08x mac_en=%0b busy=%0b done=%0b",
+                 $time,
+                 mac_vrf_raddr_o,
+                 mac_vrf_relem_o,
+                 mac_vrf_rdata_i,
+                 mac_en,
+                 busy_o,
+                 done_o);
+    end
+end
+//`endif
+// --- [end] ---
 
 endmodule
