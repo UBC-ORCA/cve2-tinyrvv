@@ -82,11 +82,13 @@ input logic [31:0]   mac_vrf_rdata_i
     // req_rs1_i = base pointer
 //TO BE RM
     logic [4:0] vs1;
-    logic [4:0] weight_blk;
+logic [11:0] imm12;
     logic [31:0] weight_base;
+logic [31:0] weight_addr;
 
     assign vs1        = req_instr_i[11:7];
-    assign weight_blk = req_instr_i[24:20];
+assign imm12       = req_instr_i[31:20];
+    assign weight_addr = weight_base + {{20{imm12[11]}}, imm12};
     assign weight_base = req_rs1_i;
 
 // --- [end] ---
@@ -138,19 +140,34 @@ assign data_wdata_o = mem_wdata;
     // rs1 = 8 activations
     // rs2 = 8 weights
     //------------------------------------------------------------
+//logic [31:0] act_packed;
+//logic [31:0] wt_packed;
 
-    genvar i;
+//always_comb begin
+  //  act_packed = req_rs1_i;
+  //  wt_packed  = req_rs2_i;
 
-    generate
+   // if (cf_req_op_i == cve2_pkg::OP_VMAC) begin
+     //   act_packed = mac_vrf_rdata_i;
+      //  wt_packed  = data_rdata_i;
+    //end
+//end
 
-        for (i = 0; i < TT; i++) begin : GEN_UNPACK
 
-            assign act_vector[i]    = req_rs1_i[4*i +: 4];
-            assign weight_vector[i] = req_rs2_i[4*i +: 4];
+  //  genvar i;
 
-        end
+  //  generate
 
-    endgenerate
+     //   for (i = 0; i < TT; i++) begin : GEN_UNPACK
+
+       //     assign act_vector[i]    = act_packed[4*i +:4];
+       //     assign weight_vector[i] = wt_packed [4*i +:4];
+
+      //  end
+
+   // endgenerate
+
+
 
     //------------------------------------------------------------
     // MAC controller
@@ -174,8 +191,8 @@ assign data_wdata_o = mem_wdata;
 //TEMP 
 // New decoded VMAC fields
         .vs1_i        (vs1),
-        .weight_blk_i (weight_blk),
-        .base_i       (weight_base),
+        //.weight_blk_i (weight_blk),
+        .base_i       (weight_addr),
 
 .mac_vrf_raddr_o(mac_vrf_raddr_o),
 .mac_vrf_relem_o(mac_vrf_relem_o),
@@ -192,6 +209,12 @@ assign data_wdata_o = mem_wdata;
 .data_rvalid_i   (data_rvalid_i),
 .data_rdata_i    (data_rdata_i), //[stev] - may not need to pass into controller
 .data_err_i      (data_err_i),
+
+// post processed rsp data
+.act_vector_o(act_vector),
+.weight_vector_o(weight_vector),
+.mac_vrf_rdata_i(mac_vrf_rdata_i),
+
 
 // --- [end] ---
 

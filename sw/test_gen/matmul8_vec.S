@@ -32,7 +32,8 @@
   .word (((f6) << 26) | (1 << 25) | ((vs2) << 20) | ((rs1) << 15) | (F3_OPIVX << 12) | ((vd) << 7) | OPV)
 
 //[stev]
-#define CUSTOM2 0x5b
+#define CUSTOM1 0x2b    // 0b0101011
+#define CUSTOM2 0x5b    // 0b1011011
 
 #define ZZMAC64 \
 .word (((0x00)<<25) | (0<<20) | (0<<15) | (0<<12) | (0<<7) | CUSTOM2)
@@ -41,13 +42,20 @@
 .word (((0x02)<<25) | ((rs2)<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
 
 //MEM
-#define VMAC64(vs1, blk, base) \
-.word ((0x02<<25) | \
-       ((blk)<<20) | \
-       ((base)<<15) | \
-       (0<<12) | \
-       ((vs1)<<7) | \
-       CUSTOM2)
+/*
+31                20 19:15 14:12 11:7 6:0
++-------------------+------+------+------+-------+
+|   imm[11:0]       | rs1  |000   | vs1  |CUSTOM1|
++-------------------+------+------+------+-------+
+*/
+
+#define VMAC64(vs1, offset, base) \
+.word ((((offset) & 0xFFF) << 20) | \
+       ((base) << 15)            | \
+       (0 << 12)                 | \
+       ((vs1) << 7)              | \
+       CUSTOM1)
+
 //MEM_end
 
 // -----------------------------------------------------------------------------
@@ -792,8 +800,8 @@ load_v0:
 
 .globl mac_mem_test
 mac_mem_test:
-    # a0 = pointer to memory
-    # v0 already loaded
+ # a0 = base pointer to FP4 weights
+    # v0 = activation vector
 
     VMAC64(0,0,10)   # vs1=v0, block=0, base=x10(a0)
 

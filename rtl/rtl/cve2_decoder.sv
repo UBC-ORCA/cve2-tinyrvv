@@ -1302,6 +1302,14 @@ cve2_pkg::mac_op_e cf_op;
   localparam logic [6:0] CF_FUNCT7_LDMAC64  = 7'h07;
   localparam logic [6:0] CF_FUNCT7_ST2MAC64  = 7'h08;
 
+
+//31                20  19:15  14:12  11:7   6:0
+//+-------------------+------+------+------+-------+
+//|   imm[11:0]       | rs1  |000   | vs1  |CUSTOM1|
+//+-------------------+------+------+------+-------+
+
+  localparam logic [6:0] CF_OPC_C1     = 7'b0101011;  //custom-1
+
 always_comb begin
 
     cf_insn     = 1'b0;
@@ -1362,6 +1370,11 @@ if (opcode == CF_OPC_OPV) begin
 	end
 
     endcase
+end
+
+else if (opcode == CF_OPC_C1) begin
+		cf_op = cve2_pkg::OP_VMAC;
+		cf_insn = 1'b1;
 end
 
 end
