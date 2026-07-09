@@ -40,6 +40,16 @@
 #define HWMAC64(rs1,rs2) \
 .word (((0x02)<<25) | ((rs2)<<20) | ((rs1)<<15) | (0<<12) | (0<<7) | CUSTOM2)
 
+//MEM
+#define VMAC64(vs1, blk, base) \
+.word ((0x02<<25) | \
+       ((blk)<<20) | \
+       ((base)<<15) | \
+       (0<<12) | \
+       ((vs1)<<7) | \
+       CUSTOM2)
+//MEM_end
+
 // -----------------------------------------------------------------------------
 // Tile move instructions
 // rs1 = row specifier (instruction field)
@@ -772,6 +782,22 @@ load_v0:
     RVV_VLE32(0,10)      # a0 points to data
     ret
 
+
+/*
+31        25 24       20 19       15 14 12 11       7 6       0
++-----------+-----------+-----------+-----+-----------+---------+
+| funct7=09 |   blk     |   rs1     |     |   vs1     | CUSTOM2 |
++-----------+-----------+-----------+-----+-----------+---------+
+*/
+
+.globl mac_mem_test
+mac_mem_test:
+    # a0 = pointer to memory
+    # v0 already loaded
+
+    VMAC64(0,0,10)   # vs1=v0, block=0, base=x10(a0)
+
+    ret
 
 //[end]
 

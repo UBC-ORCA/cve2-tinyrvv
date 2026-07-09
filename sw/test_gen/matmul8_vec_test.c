@@ -95,6 +95,16 @@ extern void mac_add_row(uint32_t row, int16_t value);
 extern void mac_ld2(void *base);
 extern void mac_st2(void *base);
 
+
+//MEM
+extern void mac_mem_test(uint32_t *ptr);
+
+
+//static volatile uint32_t mac_test_mem[8]
+  //  __attribute__((section(".mat_a"), used));
+//MEM_end
+
+
 // mode:
 //   0 = even
 //   1 = odd
@@ -109,11 +119,42 @@ uint32_t b = 0x76543210;
 
 uint32_t data;
 
+//MEM
+//MEM
+for (int i = 0; i < MAT_N * MAT_N; i++)
+{
+    mat_a[i] = 0x11111111 * (i + 1);
+}
+//MEM_end
+//MEM_end
+
+
   *COMP_START_MMIO = 1u;
 
     //mac_zz(); //[stev] - looks good
-     load_v0(vec);   // [stev] - fills v0
-	mac_hw(a, b); //[stev] - looks good
+
+/*
+     * Load v0 with 8 words.
+     * VMAC64 will use v0 as the vector operand.
+     */
+    load_v0((uint32_t *)mat_a);
+
+   /*
+     * Run vector MAC.
+     * Assembly:
+     *   VMAC64(0,0,10)
+     *   v0 x memory block 0
+     */
+    mac_mem_test((uint32_t *)mat_a);
+
+
+//MEM
+   //  load_v0(vec);   // [stev] - fills v0
+//	mac_hw(a, b); //[stev] - looks good
+//MEM_end
+
+//mac_mem_test((uint32_t *)mac_test_mem);
+
 //uint32_t chk = mac_out_pair(); //[stev] - good
 //uint32_t chk = mac_out_even(); //[stev] - good
 //uint32_t chk = mac_out_odd(); //[stev] - good

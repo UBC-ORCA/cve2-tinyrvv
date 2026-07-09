@@ -63,6 +63,10 @@ output logic [4:0] mac_vrf_raddr_o,
 output  logic [2:0]   mac_vrf_relem_o,
 input logic [31:0]   mac_vrf_rdata_i
 
+// Weight memory interface
+//output logic [31:0] weight_addr_o
+
+
 // --- [end] ---
 );
 
@@ -86,6 +90,25 @@ input logic [31:0]   mac_vrf_rdata_i
     assign weight_base = req_rs1_i;
 
 // --- [end] ---
+
+// --- [stev] ---
+//------------------------------------------------------------
+// Controller -> Memory interface
+//------------------------------------------------------------
+
+logic        mem_req;
+logic [31:0] mem_addr;
+logic        mem_we;
+logic [3:0]  mem_be;
+logic [31:0] mem_wdata;
+
+assign data_req_o   = mem_req;
+assign data_addr_o  = mem_addr;
+assign data_we_o    = mem_we;
+assign data_be_o    = mem_be;
+assign data_wdata_o = mem_wdata;
+// --- [end] ---
+
 
     localparam int TT = 8;
 
@@ -157,6 +180,19 @@ input logic [31:0]   mac_vrf_rdata_i
 .mac_vrf_raddr_o(mac_vrf_raddr_o),
 .mac_vrf_relem_o(mac_vrf_relem_o),
 
+// [stev] - load weight
+.data_req_o   (mem_req),
+.data_gnt_i      (data_gnt_i),
+.data_addr_o  (mem_addr),
+.data_we_o    (mem_we),
+.data_be_o    (mem_be),
+.data_wdata_o (mem_wdata),
+
+// Weight memory response
+.data_rvalid_i   (data_rvalid_i),
+.data_rdata_i    (data_rdata_i), //[stev] - may not need to pass into controller
+.data_err_i      (data_err_i),
+
 // --- [end] ---
 
         .req_ready_o(req_ready_o),
@@ -215,6 +251,27 @@ always_ff @(posedge clk_i) begin
     end
 end
 //`endif
+
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [MAC_MEM] req=%0b gnt=%0b addr=%08x we=%0b be=%0h wdata=%08x rvalid=%0b rdata=%08x err=%0b busy=%0b done=%0b mac_en=%0b",
+                 $time,
+                 data_req_o,
+                 data_gnt_i,
+                 data_addr_o,
+                 data_we_o,
+                 data_be_o,
+                 data_wdata_o,
+                 data_rvalid_i,
+                 data_rdata_i,
+                 data_err_i,
+                 busy_o,
+                 done_o,
+                 mac_en);
+    end
+end
+
+
 // --- [end] ---
 
 endmodule
