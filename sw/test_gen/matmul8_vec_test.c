@@ -147,6 +147,8 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
      */
     mac_mem_test((uint32_t *)mat_a);
 
+mac_zz(); //clear tile here
+
 
 //MEM
    //  load_v0(vec);   // [stev] - fills v0

@@ -118,7 +118,13 @@ module mac_controller #(
                 end
             end
 
-            EXEC: begin
+           EXEC: begin
+	     if (op_q == cve2_pkg::OP_ZZ) begin
+        		// one-cycle operation
+        		state_d = DONE;
+    	     end
+
+	     else if (op_q == cve2_pkg::OP_VMAC) begin
                 if (!mem_req_sent_q) begin
                     // Phase 1: Waiting for the LSU to accept the address request
                     if (data_gnt_i) begin
@@ -137,7 +143,8 @@ module mac_controller #(
                         end
                     end
                 end
-            end
+             end
+           end
 
             DONE: begin
                 state_d = IDLE;
@@ -160,7 +167,10 @@ module mac_controller #(
         clear_o      = 1'b0;
 
         // Strict Hardware Gating: Prevent structural firing on stray or out-of-context bus pulses
-        mac_en_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i;
+        mac_en_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i; // VMAC fires only when memory returns a word
+
+	// ZZMAC64 clears the whole tile for one cycle
+	clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
 
         // VRF Control Defaults
         mac_vrf_raddr_o = '0;
