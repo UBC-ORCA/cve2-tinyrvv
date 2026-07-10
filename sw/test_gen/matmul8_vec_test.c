@@ -149,6 +149,7 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
 
 mac_zz(); //clear tile here
 
+mac_hw(a, b); //[stev] - looks good
 
 //MEM
    //  load_v0(vec);   // [stev] - fills v0

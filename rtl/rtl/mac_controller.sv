@@ -75,6 +75,21 @@ module mac_controller #(
 
     state_e state_q, state_d;
 
+// hwmac
+logic [31:0] act_packed;
+logic [31:0] weight_packed;
+
+always_comb begin
+    act_packed    = mac_vrf_rdata_i;
+    weight_packed = data_rdata_i;
+
+    if (op_q == cve2_pkg::OP_MAC) begin
+        act_packed    = rs1_i;
+        weight_packed = rs2_i;
+    end
+end
+// end
+
     //----------------------------------------------------------
     // Sequential Logic (Latches & State)
     //----------------------------------------------------------
@@ -119,7 +134,7 @@ module mac_controller #(
             end
 
            EXEC: begin
-	     if (op_q == cve2_pkg::OP_ZZ) begin
+	     if (op_q == cve2_pkg::OP_ZZ || op_q == cve2_pkg::OP_MAC) begin
         		// one-cycle operation
         		state_d = DONE;
     	     end
@@ -167,7 +182,8 @@ module mac_controller #(
         clear_o      = 1'b0;
 
         // Strict Hardware Gating: Prevent structural firing on stray or out-of-context bus pulses
-        mac_en_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i; // VMAC fires only when memory returns a word
+        mac_en_o = ((state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i) || // VMAC fires only when memory returns a word
+ 	((state_q == EXEC) && (op_q == cve2_pkg::OP_MAC));
 
 	// ZZMAC64 clears the whole tile for one cycle
 	clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
@@ -217,8 +233,8 @@ module mac_controller #(
     genvar k;
     generate
         for (k = 0; k < VL; k++) begin : GEN_UNPACK_NIBBLES
-            assign act_vector_o[k]    = mac_vrf_rdata_i[4*k +: 4];
-            assign weight_vector_o[k] = data_rdata_i[4*k +: 4];
+            assign act_vector_o[k]    = act_packed[4*k +:4];
+            assign weight_vector_o[k] = weight_packed[4*k +:4];
         end
     endgenerate
 
