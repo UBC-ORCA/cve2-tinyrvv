@@ -151,6 +151,8 @@ mac_zz(); //clear tile here
 
 mac_hw(a, b); //[stev] - looks good
 
+uint32_t chk = mac_out(4,1,2); 
+
 //MEM
    //  load_v0(vec);   // [stev] - fills v0
 //	mac_hw(a, b); //[stev] - looks good
@@ -178,8 +180,8 @@ mac_hw(a, b); //[stev] - looks good
 
   *COMP_END_MMIO = 1u;
 
-  *DONE_MMIO = 0x22;
-//  *DONE_MMIO = chk;
+ // *DONE_MMIO = 0x22;
+  *DONE_MMIO = chk;
 
   while (1) {}
 }

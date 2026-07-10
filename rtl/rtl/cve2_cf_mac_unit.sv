@@ -91,6 +91,23 @@ assign imm12       = req_instr_i[31:20];
     assign weight_addr = weight_base + {{20{imm12[11]}}, imm12};
     assign weight_base = req_rs1_i;
 
+// mv
+    logic [4:0] mv_row  = req_instr_i[19:15];
+    logic [4:0] mv_pair = req_instr_i[24:20];
+
+	logic        mv_en;
+	logic [1:0]  mv_mode;   // 0=even 1=odd 2=pair
+	logic [2:0] mv_even_col_idx;
+	logic [2:0] mv_odd_col_idx;
+	logic [2:0] mv_row_idx;
+logic [31:0] mv_data;
+assign scalar_wdata_o = mv_data;
+
+    logic [4:0] scalar_waddr;
+
+        assign scalar_waddr = req_instr_i[11:7];
+
+
 // --- [end] ---
 
 // --- [stev] ---
@@ -133,40 +150,6 @@ assign data_wdata_o = mem_wdata;
     //------------------------------------------------------------
 
     logic signed [15:0] tile_accum [0:TT-1][0:TT-1];
-
-    //------------------------------------------------------------
-    // Parse packed FP4 operands
-    //
-    // rs1 = 8 activations
-    // rs2 = 8 weights
-    //------------------------------------------------------------
-//logic [31:0] act_packed;
-//logic [31:0] wt_packed;
-
-//always_comb begin
-  //  act_packed = req_rs1_i;
-  //  wt_packed  = req_rs2_i;
-
-   // if (cf_req_op_i == cve2_pkg::OP_VMAC) begin
-     //   act_packed = mac_vrf_rdata_i;
-      //  wt_packed  = data_rdata_i;
-    //end
-//end
-
-
-  //  genvar i;
-
-  //  generate
-
-     //   for (i = 0; i < TT; i++) begin : GEN_UNPACK
-
-       //     assign act_vector[i]    = act_packed[4*i +:4];
-       //     assign weight_vector[i] = wt_packed [4*i +:4];
-
-      //  end
-
-   // endgenerate
-
 
 
     //------------------------------------------------------------
@@ -215,6 +198,19 @@ assign data_wdata_o = mem_wdata;
 .weight_vector_o(weight_vector),
 .mac_vrf_rdata_i(mac_vrf_rdata_i),
 
+//mv
+
+      .mv_en_o(mv_en),
+	 .mv_mode_o(mv_mode),   // 0=even 1=odd 2=pair
+	.mv_even_col_idx_o(mv_even_col_idx),
+	.mv_odd_col_idx_o(mv_odd_col_idx),
+	 .mv_row_idx_o(mv_row_idx),
+  	  .mv_row_i(mv_row),       // instruction rs1 field
+    .mv_pair_i(mv_pair),      // instruction rs2 field
+
+.scalar_waddr_i(scalar_waddr),
+.scalar_waddr_o(scalar_waddr_o),
+.scalar_we_o(scalar_we_o),
 
 // --- [end] ---
 
@@ -242,7 +238,16 @@ assign data_wdata_o = mem_wdata;
         .act_i(act_vector),
         .wt_i(weight_vector),
 
-        .accum_o(tile_accum)
+        .accum_o(tile_accum),
+
+//mv
+      .mv_en_i(mv_en),
+	 .mv_mode_i(mv_mode),   // 0=even 1=odd 2=pair
+	.mv_even_col_idx_i(mv_even_col_idx),
+	.mv_odd_col_idx_i(mv_odd_col_idx),
+	 .mv_row_idx_i(mv_row_idx),
+ .mv_data_o(mv_data)
+
     );
 
 // --- [stev] ---
@@ -294,6 +299,39 @@ always_ff @(posedge clk_i) begin
     end
 end
 
+
+//------------------------------------------------------------
+// Debug: MAC Move / Scalar Writeback
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [MAC_MV] op=%0d mv_en=%0b mode=%0d row=%0d even_col=%0d odd_col=%0d",
+                 $time,
+                 cf_req_op_i,
+                 mv_en,
+                 mv_mode,
+                 mv_row_idx,
+                 mv_even_col_idx,
+                 mv_odd_col_idx);
+
+        if (mv_en) begin
+            $display("[%0t] [MAC_MV] DATA_OUT=%08x scalar_we=%0b scalar_waddr=x%0d",
+                     $time,
+                     mv_data,
+                     scalar_we_o,
+                     scalar_waddr_o);
+
+            $display("[%0t] [MAC_MV] TILE[%0d][%0d]=%0d TILE[%0d][%0d]=%0d",
+                     $time,
+                     mv_row_idx,
+                     mv_even_col_idx,
+                     tile_accum[mv_row_idx][mv_even_col_idx],
+                     mv_row_idx,
+                     mv_odd_col_idx,
+                     tile_accum[mv_row_idx][mv_odd_col_idx]);
+        end
+    end
+end
 
 // --- [end] ---
 

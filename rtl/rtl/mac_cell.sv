@@ -11,6 +11,7 @@ module mac_cell (
 
     input  logic mac_en_i,
     input  logic clear_i,
+	input logic mv_clear_i, //for mv
 
     //-----------------------------------------
     // FP4 operands (INT5 rep)
@@ -68,7 +69,7 @@ module mac_cell (
         .clk(clk),
         .rst_n(rst_n),
 
-        .clear_i(clear_i),
+        .clear_i(clear_i || mv_clear_i),
         .we_i(mac_en_i),
 
         .d_i(accum_next),
