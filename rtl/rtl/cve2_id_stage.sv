@@ -563,7 +563,8 @@ cve2_pkg::mac_op_e     cf_op_dec;
   assign vec_scalar_we_safe = vec_scalar_we_i & vec_done_i;
 
 // --- [stev] ---
-  assign cf_scalar_we_safe = cf_scalar_we_i & cf_done_i;
+//  assign cf_scalar_we_safe = cf_scalar_we_i & cf_done_i;
+  assign cf_scalar_we_safe = cf_scalar_we_i;
 
 
 
