@@ -26,14 +26,14 @@ import mx_pkg::*;
     logic signed [8:0] exp_diff;
     bf16_t max_op, min_op;
     
-    // Internal extended mantissas to track hidden bit, guard, round, and sticky bits
+    // Internal extended mantissas:
+    // [Hidden Bit: 1] + [MANT_WIDTH: 7] + [Guard: 1] + [Round: 1] + [Sticky: 1] = 11 bits
     localparam int EXT_MANT_WIDTH = 1 + MANT_WIDTH + 3; 
     
     logic [EXT_MANT_WIDTH-1:0] max_mant;
     logic [EXT_MANT_WIDTH-1:0] min_mant;
     logic [EXT_MANT_WIDTH-1:0] min_mant_shifted;
 
-    // --- MOVED DECLARATIONS TO MODULE SCOPE TO FIX VERILATOR ERRORS ---
     logic eff_sub;
     logic [EXT_MANT_WIDTH:0] sum_mant_ext; 
     logic [7:0]  final_exp;
@@ -91,11 +91,13 @@ import mx_pkg::*;
             op_res = '0; 
         end 
         else if (eff_sub == 1'b0 && sum_mant_ext[EXT_MANT_WIDTH]) begin
+            // Overflow during addition: shift right and preserve sticky bit
             norm_mant = sum_mant_ext >> 1;
             norm_mant[0] = norm_mant[0] | sum_mant_ext[0]; 
             final_exp = final_exp + 1'b1;
         end 
         else if (eff_sub == 1'b1 && !sum_mant_ext[EXT_MANT_WIDTH-1]) begin
+            // Cancellation during subtraction: shift left by LZC
             if      (sum_mant_ext[10]) lzc = 4'd0;
             else if (sum_mant_ext[9])  lzc = 4'd1;
             else if (sum_mant_ext[8])  lzc = 4'd2;
@@ -118,16 +120,17 @@ import mx_pkg::*;
         end
 
         // ---------------------------------------------------------------------
-        // 4. ROUNDING & PACKING
+        // 4. ROUNDING (Round to Nearest, Ties to Even) & PACKING
         // ---------------------------------------------------------------------
         if (sum_mant_ext != '0) begin
             logic [6:0] r_mant;
             logic       g, r, s, round_up;
 
-            r_mant = norm_mant[10:4]; 
-            g      = norm_mant[3];    
-            r      = norm_mant[2];    
-            s      = |norm_mant[1:0]; 
+            // --- FIXED BIT INDEXING HERE ---
+            r_mant = norm_mant[9:3]; // Extract ONLY the 7 fractional mantissa bits
+            g      = norm_mant[2];   // Guard bit
+            r      = norm_mant[1];   // Round bit
+            s      = norm_mant[0];   // Sticky bit
 
             round_up = g && (r || s || r_mant[0]);
 
@@ -135,6 +138,7 @@ import mx_pkg::*;
 
             if (round_up) begin
                 if (r_mant == 7'h7F) begin
+                    // Mantissa overflow on rounding up
                     op_res.mant = '0;
                     op_res.exp  = final_exp + 1'b1;
                 end else begin
@@ -146,11 +150,52 @@ import mx_pkg::*;
                 op_res.exp  = final_exp;
             end
 
+            // Infinity/Overflow Saturation Guard
             if (final_exp >= 8'hFF) begin
                 op_res.exp  = 8'hFF;
                 op_res.mant = '0;
             end
         end
     end
+
+
+// --- [stev] ---
+// ---------------------------------------------------------------------
+    // DEBUG LOGGING BLOCK
+    // ---------------------------------------------------------------------
+    // This block triggers whenever the output changes, printing the full 
+    // internal state of the unpack, shift, math, and rounding stages.
+    always @(sum) begin
+        // Only print valid operations (skipping initial/X states in simulation)
+        if (^a !== 1'bx && ^b !== 1'bx) begin
+            $display("----------------------------------------------------------------");
+            $display("[DEBUG ADDER] Inputs: A = 16'h%4h | B = 16'h%4h", a, b);
+            $display("  Unpacked A: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_a.sign, op_a.exp, op_a.mant);
+            $display("  Unpacked B: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_b.sign, op_b.exp, op_b.mant);
+            $display("----------------------------------------------------------------");
+            $display("  Alignment Stage:");
+            $display("    Exp Diff      = %d", exp_diff);
+            $display("    Max Mant (Int)= 11'b%11b", max_mant);
+            $display("    Min Mant (Int)= 11'b%11b", min_mant);
+            $display("    Shifted Min   = 11'b%11b", min_mant_shifted);
+            $display("----------------------------------------------------------------");
+            $display("  Arithmetic Stage:");
+            $display("    Effective Sub = %b", eff_sub);
+            $display("    Sum Mant Ext  = 12'b%12b", sum_mant_ext);
+            $display("----------------------------------------------------------------");
+            $display("  Normalization Stage:");
+            $display("    Final Exp Pre = 8'h%2h", final_exp);
+            $display("    Norm Mant     = 12'b%12b", norm_mant);
+            $display("----------------------------------------------------------------");
+            $display("  Rounding & Packing Stage (Targeting Bits 9:3):");
+            $display("    Extracted Mantissa Bits [9:3] = 7'b%7b (Hex: 7'h%2h)", norm_mant[9:3], norm_mant[9:3]);
+            $display("    Guard (Bit 2)                 = %b", norm_mant[2]);
+            $display("    Round (Bit 1)                 = %b", norm_mant[1]);
+            $display("    Sticky (Bit 0)                = %b", norm_mant[0]);
+            $display("    Packed Result                 = 16'h%4h", sum);
+            $display("----------------------------------------------------------------\n");
+        end
+    end
+// --- [end] ---
 
 endmodule
