@@ -98,7 +98,7 @@ extern void mac_st2(void *base);
 
 
 //MEM
-extern void mac_mem_test(uint32_t *ptr);
+extern void mac_mem_test_v0(uint32_t *ptr);
 extern void mac_mem_test_v1(uint32_t *ptr);
 
 
@@ -124,10 +124,15 @@ uint32_t data;
 
 //MEM
 //MEM
+
 for (int i = 0; i < MAT_N * MAT_N; i++)
 {
-    mat_a[i] = 0x11111111 * (i + 1);
+    //mat_a[i] = 0x11111111 * (i + 1);
+ 	mat_a[i] = vec[i % 8];
 }
+
+
+
 //MEM_end
 //MEM_end
 
@@ -160,7 +165,7 @@ mac_zz(); //clear tile here
 
      load_v0((uint32_t *)mat_a);
 
-    mac_mem_test((uint32_t *)mat_a);
+    mac_mem_test_v0((uint32_t *)mat_a);
 
 
 //MEM

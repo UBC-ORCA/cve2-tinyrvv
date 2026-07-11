@@ -798,8 +798,8 @@ load_v0:
 +-----------+-----------+-----------+-----+-----------+---------+
 */
 
-.globl mac_mem_test
-mac_mem_test:
+.globl mac_mem_test_v0
+mac_mem_test_v0:
  # a0 = base pointer to FP4 weights
     # v0 = activation vector
 
