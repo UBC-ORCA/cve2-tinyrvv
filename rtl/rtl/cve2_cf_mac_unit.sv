@@ -276,7 +276,7 @@ assign data_wdata_o = mem_wdata;
 .scale0_o(scale0),
  .scale1_o(scale1),
  .scale2_o(scale2),
- .scale3_o(scale3),
+ //.scale3_o(scale3),
  .scale_col_i(scale_col),
     .scale_row_sel_i(scale_row_sel)
 //SCALE_end
@@ -322,6 +322,8 @@ mac_scale_accum u_scale_accum3 (
 //to_RM
 assign scale_col = 0;
 assign scale_row_sel = 0;
+assign scale3 = 127;
+ 
 //------------------------------------------------------------
 // Temporary tie-offs
 //------------------------------------------------------------
@@ -337,10 +339,10 @@ always_comb begin
     scaleB[2] = 8'h7F;
     scaleB[3] = 8'h7F;
 
-    scale_accum_in[0] = 16'h0000;
-    scale_accum_in[1] = 16'h0000;
-    scale_accum_in[2] = 16'h0000;
-    scale_accum_in[3] = 16'h0000;
+    scale_accum_in[0] = 16'hC0A0;
+    scale_accum_in[1] = 16'h4302;
+    scale_accum_in[2] = 16'h42FE;
+    scale_accum_in[3] = 16'h42FE;
 end
 //to_RM_end
 
