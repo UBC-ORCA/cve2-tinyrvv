@@ -8,13 +8,16 @@ extern void matmul8_vec(const volatile uint32_t *a,
                         volatile uint32_t *tmp_prod);
 
 #define MAT_N 8
+#define TT 8
+#define BS 8
+#define NVREG 32
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
 static volatile uint32_t *const COMP_END_MMIO   = (volatile uint32_t *)0xFFFF0008u;
 
 
-static volatile uint32_t mat_a[MAT_N * MAT_N]
+static volatile uint32_t mat_a[TT * BS * NVREG]
     __attribute__((section(".mat_a"), used));
 static volatile uint32_t mat_b[MAT_N * MAT_N]
     __attribute__((section(".mat_bt"), used));
@@ -69,8 +72,8 @@ int main(void) {
 */
 
 // --- [stev] ---
-extern void load_v0(uint32_t *ptr);
-extern void load_v1(uint32_t *ptr);
+//extern void load_v0(uint32_t *ptr);
+//extern void load_v1(uint32_t *ptr);
 
 uint32_t vec[8] = {
     0x11111111,
@@ -97,9 +100,73 @@ extern void mac_ld2(void *base);
 extern void mac_st2(void *base);
 
 
-//MEM
+// Load vector registers
+extern void load_v0(uint32_t *ptr);
+extern void load_v1(uint32_t *ptr);
+extern void load_v2(uint32_t *ptr);
+extern void load_v3(uint32_t *ptr);
+extern void load_v4(uint32_t *ptr);
+extern void load_v5(uint32_t *ptr);
+extern void load_v6(uint32_t *ptr);
+extern void load_v7(uint32_t *ptr);
+extern void load_v8(uint32_t *ptr);
+extern void load_v9(uint32_t *ptr);
+extern void load_v10(uint32_t *ptr);
+extern void load_v11(uint32_t *ptr);
+extern void load_v12(uint32_t *ptr);
+extern void load_v13(uint32_t *ptr);
+extern void load_v14(uint32_t *ptr);
+extern void load_v15(uint32_t *ptr);
+extern void load_v16(uint32_t *ptr);
+extern void load_v17(uint32_t *ptr);
+extern void load_v18(uint32_t *ptr);
+extern void load_v19(uint32_t *ptr);
+extern void load_v20(uint32_t *ptr);
+extern void load_v21(uint32_t *ptr);
+extern void load_v22(uint32_t *ptr);
+extern void load_v23(uint32_t *ptr);
+extern void load_v24(uint32_t *ptr);
+extern void load_v25(uint32_t *ptr);
+extern void load_v26(uint32_t *ptr);
+extern void load_v27(uint32_t *ptr);
+extern void load_v28(uint32_t *ptr);
+extern void load_v29(uint32_t *ptr);
+extern void load_v30(uint32_t *ptr);
+extern void load_v31(uint32_t *ptr);
+
+// Memory-backed VMAC tests
 extern void mac_mem_test_v0(uint32_t *ptr);
 extern void mac_mem_test_v1(uint32_t *ptr);
+extern void mac_mem_test_v2(uint32_t *ptr);
+extern void mac_mem_test_v3(uint32_t *ptr);
+extern void mac_mem_test_v4(uint32_t *ptr);
+extern void mac_mem_test_v5(uint32_t *ptr);
+extern void mac_mem_test_v6(uint32_t *ptr);
+extern void mac_mem_test_v7(uint32_t *ptr);
+extern void mac_mem_test_v8(uint32_t *ptr);
+extern void mac_mem_test_v9(uint32_t *ptr);
+extern void mac_mem_test_v10(uint32_t *ptr);
+extern void mac_mem_test_v11(uint32_t *ptr);
+extern void mac_mem_test_v12(uint32_t *ptr);
+extern void mac_mem_test_v13(uint32_t *ptr);
+extern void mac_mem_test_v14(uint32_t *ptr);
+extern void mac_mem_test_v15(uint32_t *ptr);
+extern void mac_mem_test_v16(uint32_t *ptr);
+extern void mac_mem_test_v17(uint32_t *ptr);
+extern void mac_mem_test_v18(uint32_t *ptr);
+extern void mac_mem_test_v19(uint32_t *ptr);
+extern void mac_mem_test_v20(uint32_t *ptr);
+extern void mac_mem_test_v21(uint32_t *ptr);
+extern void mac_mem_test_v22(uint32_t *ptr);
+extern void mac_mem_test_v23(uint32_t *ptr);
+extern void mac_mem_test_v24(uint32_t *ptr);
+extern void mac_mem_test_v25(uint32_t *ptr);
+extern void mac_mem_test_v26(uint32_t *ptr);
+extern void mac_mem_test_v27(uint32_t *ptr);
+extern void mac_mem_test_v28(uint32_t *ptr);
+extern void mac_mem_test_v29(uint32_t *ptr);
+extern void mac_mem_test_v30(uint32_t *ptr);
+extern void mac_mem_test_v31(uint32_t *ptr);
 
 
 
@@ -125,7 +192,7 @@ uint32_t data;
 //MEM
 //MEM
 
-for (int i = 0; i < MAT_N * MAT_N; i++)
+for (int i = 0; i < TT * BS * NVREG; i++)
 {
     //mat_a[i] = 0x11111111 * (i + 1);
  	mat_a[i] = vec[i % 8];
@@ -166,6 +233,14 @@ mac_zz(); //clear tile here
      load_v0((uint32_t *)mat_a);
 
     mac_mem_test_v0((uint32_t *)mat_a);
+
+
+//v31
+mac_zz(); //clear tile here
+
+     load_v31((uint32_t *)mat_a);
+
+    mac_mem_test_v31((uint32_t *)mat_a);
 
 
 //MEM
