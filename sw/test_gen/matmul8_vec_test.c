@@ -150,11 +150,11 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
      */
     mac_mem_test_v1((uint32_t *)mat_a);
 
-//mac_zz(); //clear tile here
+mac_zz(); //clear tile here
 
-//mac_hw(a, b); //[stev] - looks good
+mac_hw(a, b); //[stev] - looks good
 
-//uint32_t chk = mac_out(4,1,2); 
+uint32_t chk = mac_out(4,1,2); 
 
 //MEM
    //  load_v0(vec);   // [stev] - fills v0
@@ -183,8 +183,8 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
 
   *COMP_END_MMIO = 1u;
 
-  *DONE_MMIO = 0x22;
- // *DONE_MMIO = chk;
+ // *DONE_MMIO = 0x22;
+  *DONE_MMIO = chk;
 
   while (1) {}
 }
