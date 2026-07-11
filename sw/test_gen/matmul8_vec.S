@@ -807,6 +807,26 @@ mac_mem_test:
 
     ret
 
+//for v1 debug
+.globl load_v1
+load_v1:
+    li      t0,8
+    RVV_VSETVLI(0,5,0x0D0)
+
+    RVV_VLE32(1,10)      # a0 points to data
+    ret
+
+.globl mac_mem_test_v1
+mac_mem_test_v1:
+ # a0 = base pointer to FP4 weights
+    # v0 = activation vector
+
+    VMAC64(1,0,10)   # vs1=v0, block=0, base=x10(a0)
+
+    ret
+
+
+
 //[end]
 
 

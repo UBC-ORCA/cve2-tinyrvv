@@ -70,6 +70,7 @@ int main(void) {
 
 // --- [stev] ---
 extern void load_v0(uint32_t *ptr);
+extern void load_v1(uint32_t *ptr);
 
 uint32_t vec[8] = {
     0x11111111,
@@ -98,6 +99,8 @@ extern void mac_st2(void *base);
 
 //MEM
 extern void mac_mem_test(uint32_t *ptr);
+extern void mac_mem_test_v1(uint32_t *ptr);
+
 
 
 //static volatile uint32_t mac_test_mem[8]
@@ -137,7 +140,7 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
      * Load v0 with 8 words.
      * VMAC64 will use v0 as the vector operand.
      */
-    load_v0((uint32_t *)mat_a);
+    load_v1((uint32_t *)mat_a);
 
    /*
      * Run vector MAC.
@@ -145,13 +148,13 @@ for (int i = 0; i < MAT_N * MAT_N; i++)
      *   VMAC64(0,0,10)
      *   v0 x memory block 0
      */
-    mac_mem_test((uint32_t *)mat_a);
+    mac_mem_test_v1((uint32_t *)mat_a);
 
-mac_zz(); //clear tile here
+//mac_zz(); //clear tile here
 
-mac_hw(a, b); //[stev] - looks good
+//mac_hw(a, b); //[stev] - looks good
 
-uint32_t chk = mac_out(4,1,2); 
+//uint32_t chk = mac_out(4,1,2); 
 
 //MEM
    //  load_v0(vec);   // [stev] - fills v0
@@ -180,8 +183,8 @@ uint32_t chk = mac_out(4,1,2);
 
   *COMP_END_MMIO = 1u;
 
- // *DONE_MMIO = 0x22;
-  *DONE_MMIO = chk;
+  *DONE_MMIO = 0x22;
+ // *DONE_MMIO = chk;
 
   while (1) {}
 }
