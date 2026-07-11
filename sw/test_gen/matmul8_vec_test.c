@@ -154,7 +154,14 @@ mac_zz(); //clear tile here
 
 mac_hw(a, b); //[stev] - looks good
 
-uint32_t chk = mac_out(4,1,2); 
+uint32_t chk = mac_out(4,1,2);
+
+mac_zz(); //clear tile here
+
+     load_v0((uint32_t *)mat_a);
+
+    mac_mem_test((uint32_t *)mat_a);
+
 
 //MEM
    //  load_v0(vec);   // [stev] - fills v0
