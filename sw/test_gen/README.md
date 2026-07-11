@@ -7,7 +7,7 @@ This directory contains the build files for the `matmul8` vector test.
 To compile the firmware and generate the Verilog HEX image, run:
 
 ```bash
-make -f matmul8.mk
+make -f matmult8.mk
 ```
 
 This command will:
@@ -34,7 +34,7 @@ This command will:
 To remove all generated files, run:
 
 ```bash
-make -f matmul8.mk clean
+make -f matmult8.mk clean
 ```
 
 ## Requirements
@@ -63,7 +63,7 @@ These are typically provided by a RISC-V GCC toolchain installation.
 
 ## Example Commands
 
-The following commands are executed by `make -f matmul8.mk`.
+The following commands are executed by `make -f matmult8.mk`.
 
 ### Build ELF Executable
 
