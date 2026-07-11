@@ -108,6 +108,30 @@ assign scalar_wdata_o = mv_data;
         assign scalar_waddr = req_instr_i[11:7];
 
 
+// SCALE
+logic signed [15:0] scale0;
+logic signed [15:0] scale1;
+logic signed [15:0] scale2;
+logic signed [15:0] scale3;
+logic [2:0] scale_col;
+logic       scale_row_sel;
+//SCALE_end
+
+//------------------------------------------------------------
+// Scale accumulators
+//------------------------------------------------------------
+
+// BF16 BRAM values (placeholder until BRAM is connected)
+logic [15:0] scale_accum_in [0:3];
+
+// Updated BRAM values
+logic [15:0] scale_accum_out [0:3];
+
+// Scale factors (replace with real source later)
+logic [7:0] scaleA [0:3];
+logic [7:0] scaleB [0:3];
+
+
 // --- [end] ---
 
 // --- [stev] ---
@@ -246,11 +270,104 @@ assign data_wdata_o = mem_wdata;
 	.mv_even_col_idx_i(mv_even_col_idx),
 	.mv_odd_col_idx_i(mv_odd_col_idx),
 	 .mv_row_idx_i(mv_row_idx),
- .mv_data_o(mv_data)
+ .mv_data_o(mv_data),
+
+//SCALE
+.scale0_o(scale0),
+ .scale1_o(scale1),
+ .scale2_o(scale2),
+ .scale3_o(scale3),
+ .scale_col_i(scale_col),
+    .scale_row_sel_i(scale_row_sel)
+//SCALE_end
 
     );
 
+//------------------------------------------------------------
+// Four MAC scale/accumulate units
+//------------------------------------------------------------
+
+mac_scale_accum u_scale_accum0 (
+    .tile_value      (scale0),
+    .scaleA          (scaleA[0]),
+    .scaleB          (scaleB[0]),
+    .accumulator     (scale_accum_in[0]),
+    .accumulator_out (scale_accum_out[0])
+);
+
+mac_scale_accum u_scale_accum1 (
+    .tile_value      (scale1),
+    .scaleA          (scaleA[1]),
+    .scaleB          (scaleB[1]),
+    .accumulator     (scale_accum_in[1]),
+    .accumulator_out (scale_accum_out[1])
+);
+
+mac_scale_accum u_scale_accum2 (
+    .tile_value      (scale2),
+    .scaleA          (scaleA[2]),
+    .scaleB          (scaleB[2]),
+    .accumulator     (scale_accum_in[2]),
+    .accumulator_out (scale_accum_out[2])
+);
+
+mac_scale_accum u_scale_accum3 (
+    .tile_value      (scale3),
+    .scaleA          (scaleA[3]),
+    .scaleB          (scaleB[3]),
+    .accumulator     (scale_accum_in[3]),
+    .accumulator_out (scale_accum_out[3])
+);
+
+//to_RM
+assign scale_col = 0;
+assign scale_row_sel = 0;
+//------------------------------------------------------------
+// Temporary tie-offs
+//------------------------------------------------------------
+
+always_comb begin
+    scaleA[0] = 8'h7F;
+    scaleA[1] = 8'h7F;
+    scaleA[2] = 8'h7F;
+    scaleA[3] = 8'h7F;
+
+    scaleB[0] = 8'h7F;
+    scaleB[1] = 8'h7F;
+    scaleB[2] = 8'h7F;
+    scaleB[3] = 8'h7F;
+
+    scale_accum_in[0] = 16'h0000;
+    scale_accum_in[1] = 16'h0000;
+    scale_accum_in[2] = 16'h0000;
+    scale_accum_in[3] = 16'h0000;
+end
+//to_RM_end
+
+
 // --- [stev] ---
+//------------------------------------------------------------
+// Debug: Scale Accumulator Outputs
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [SCALE] tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
+                 $time,
+                 scale0,
+                 scale1,
+                 scale2,
+                 scale3,
+                 scale_accum_in[0],
+                 scale_accum_in[1],
+                 scale_accum_in[2],
+                 scale_accum_in[3],
+                 scale_accum_out[0],
+                 scale_accum_out[1],
+                 scale_accum_out[2],
+                 scale_accum_out[3]);
+    end
+end
+
 //------------------------------------------------------------
 // Debug: MAC VRF read port
 //------------------------------------------------------------
