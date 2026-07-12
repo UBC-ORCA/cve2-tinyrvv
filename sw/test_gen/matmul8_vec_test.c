@@ -17,8 +17,11 @@ static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF000
 static volatile uint32_t *const COMP_END_MMIO   = (volatile uint32_t *)0xFFFF0008u;
 
 
-static volatile uint32_t mat_a[TT * BS * NVREG]
+//static volatile uint32_t mat_a[TT * BS * NVREG]
+//    __attribute__((section(".mat_a"), used));
+static volatile uint32_t mat_a[TT * BS]
     __attribute__((section(".mat_a"), used));
+
 static volatile uint32_t mat_b[MAT_N * MAT_N]
     __attribute__((section(".mat_bt"), used));
 static volatile uint32_t mat_c[MAT_N * MAT_N]
@@ -169,6 +172,11 @@ extern void mac_mem_test_v30(uint32_t *ptr);
 extern void mac_mem_test_v31(uint32_t *ptr);
 
 
+// scale
+extern void load_act_scales(const uint8_t *base);
+extern void load_w_scales(const uint8_t *base);
+extern void mac_scale_acc(void);
+
 
 //static volatile uint32_t mac_test_mem[8]
   //  __attribute__((section(".mat_a"), used));
@@ -192,12 +200,17 @@ uint32_t data;
 //MEM
 //MEM
 
-for (int i = 0; i < TT * BS * NVREG; i++)
-{
+//for (int i = 0; i < TT * BS * NVREG; i++)
+//{
     //mat_a[i] = 0x11111111 * (i + 1);
- 	mat_a[i] = vec[i % 8];
-}
+// 	mat_a[i] = vec[i % 8];
+//}
 
+for (int i = 0; i < TT * BS; i++)
+{
+    mat_a[i] = 0x11111111 * (i + 1);
+ //	mat_a[i] = vec[i % 8];
+}
 
 
 //MEM_end
@@ -236,11 +249,11 @@ mac_zz(); //clear tile here
 
 
 //v31
-mac_zz(); //clear tile here
+//mac_zz(); //clear tile here
 
-     load_v31((uint32_t *)mat_a);
+  //   load_v31((uint32_t *)mat_a);
 
-    mac_mem_test_v31((uint32_t *)mat_a);
+    //mac_mem_test_v31((uint32_t *)mat_a);
 
 
 //MEM

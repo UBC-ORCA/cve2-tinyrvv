@@ -115,6 +115,24 @@ logic signed [15:0] scale2;
 logic signed [15:0] scale3;
 logic [2:0] scale_col;
 logic       scale_row_sel;
+
+//macAs, Ws
+logic [31:0] act_scale_lo;
+logic [31:0] act_scale_hi;
+
+logic [31:0] weight_scale_lo;
+logic [31:0] weight_scale_hi;
+
+
+logic act_scale_ready;
+logic weight_scale_ready;
+
+    logic signed [15:0] tile_snapshot [0:TT-1][0:TT-1];
+logic snapshot_valid;
+
+
+//end
+
 //SCALE_end
 
 //------------------------------------------------------------
@@ -236,6 +254,24 @@ assign data_wdata_o = mem_wdata;
 .scalar_waddr_o(scalar_waddr_o),
 .scalar_we_o(scalar_we_o),
 
+
+	//macAs, Ws
+
+.act_scale_lo_o(act_scale_lo),
+.act_scale_hi_o(act_scale_hi),
+
+.weight_scale_lo_o(weight_scale_lo),
+.weight_scale_hi_o(weight_scale_hi),
+
+.act_scale_ready_o(act_scale_ready),
+.weight_scale_ready_o(weight_scale_ready),
+.mac_snapshot_valid_o(snapshot_valid),
+	
+	// end
+
+
+
+
 // --- [end] ---
 
         .req_ready_o(req_ready_o),
@@ -262,7 +298,8 @@ assign data_wdata_o = mem_wdata;
         .act_i(act_vector),
         .wt_i(weight_vector),
 
-        .accum_o(tile_accum),
+        //.accum_o(tile_accum),
+.accum_o(tile_snapshot),
 
 //mv
       .mv_en_i(mv_en),

@@ -1,5 +1,5 @@
 module mac_controller #(
-    parameter int VL = 8 // Vector Length configuration matches wrapper TT parameter
+    parameter int VL = 8 // Vector Length configuration matches wrapper TT parameter, [stev] - beware
 ) (
     input  logic                 clk_i,
     input  logic                 rst_ni,
@@ -59,8 +59,41 @@ module mac_controller #(
 
     // Optimized Interface: Directly outputs clean, sliced vector structures
     output logic [3:0]           act_vector_o    [0:VL-1],
-    output logic [3:0]           weight_vector_o [0:VL-1]
+    output logic [3:0]           weight_vector_o [0:VL-1],
+
+//macAs, Ws
+// Scale register interface
+output logic [31:0] act_scale_lo_o,
+output logic [31:0] act_scale_hi_o,
+
+output logic [31:0] weight_scale_lo_o,
+output logic [31:0] weight_scale_hi_o,
+
+output logic        act_scale_ready_o,
+output logic        weight_scale_ready_o,
+output logic snapshot_valid_o,
+//end
+
+
+
+//SCALE
+output logic [2:0] scale_col_o, //[stev] - unused
+output logic       scale_row_sel_o //[stev] - unused
+
 );
+
+//macAs, Ws
+// Scale register interface
+logic [31:0] act_scale_lo_q;
+logic [31:0] act_scale_hi_q;
+
+logic [31:0] weight_scale_lo_q;
+logic [31:0] weight_scale_hi_q;
+
+logic        act_scale_ready_q;
+logic        weight_scale_ready_q;
+
+//end
 
     //----------------------------------------------------------
     // Registers & Internal Signals
@@ -138,6 +171,19 @@ logic [4:0] scalar_waddr_q;
             count_q        <= '0;
             mem_req_sent_q <= 1'b0;
 	    scalar_waddr_q <= '0;
+
+	//macAs, Ws
+	    act_scale_lo_q      <= '0;
+	    act_scale_hi_q      <= '0;
+
+	    weight_scale_lo_q   <= '0;
+	    weight_scale_hi_q   <= '0;
+
+	    act_scale_ready_q   <= 1'b0;
+	    weight_scale_ready_q<= 1'b0;
+	// end
+
+
         end else begin
             state_q        <= state_d;
             count_q        <= count_d;
@@ -149,6 +195,27 @@ logic [4:0] scalar_waddr_q;
                 weight_blk_q <= weight_blk_i;
                 base_q       <= base_i;
 		scalar_waddr_q <= scalar_waddr_i;
+
+	//macAs, Ws
+	unique case (cf_req_op_i)
+
+    	cve2_pkg::OP_MAC_AS: begin
+        	act_scale_lo_q    <= rs1_i;
+        	act_scale_hi_q    <= rs2_i;
+        	act_scale_ready_q <= 1'b1;
+    	end
+
+    	cve2_pkg::OP_MAC_WS: begin
+        	weight_scale_lo_q     <= rs1_i;
+        	weight_scale_hi_q     <= rs2_i;
+        	weight_scale_ready_q  <= 1'b1;
+    	end
+
+    	default: ;
+
+	endcase
+	// end
+
             end
         end
     end
@@ -175,7 +242,9 @@ logic [4:0] scalar_waddr_q;
     		(op_q == cve2_pkg::OP_MAC) ||
     		(op_q == cve2_pkg::OP_MVE) ||
     		(op_q == cve2_pkg::OP_MVO) ||
-    		(op_q == cve2_pkg::OP_MV2))
+    		(op_q == cve2_pkg::OP_MV2)) ||
+		(op_q == cve2_pkg::OP_MAC_AS) ||
+    		(op_q == cve2_pkg::OP_MAC_WS))
 	     begin
         		// one-cycle operation
         		state_d = DONE;
@@ -247,6 +316,18 @@ logic [4:0] scalar_waddr_q;
         data_be_o    = 4'b1111; 
         data_wdata_o = '0;
 
+	//macAs, Ws
+        act_scale_lo_o       = act_scale_lo_q;
+        act_scale_hi_o       = act_scale_hi_q;
+
+        weight_scale_lo_o    = weight_scale_lo_q;
+        weight_scale_hi_o    = weight_scale_hi_q;
+
+        act_scale_ready_o    = act_scale_ready_q;
+        weight_scale_ready_o = weight_scale_ready_q;
+	snapshot_valid_o = 1'b0;	
+	// end
+
         case (state_q)
             IDLE: begin
                 req_ready_o = 1'b1;
@@ -293,7 +374,12 @@ logic [4:0] scalar_waddr_q;
                         data_req_o  = 1'b1;
                         data_addr_o = base_q + (count_q << 2); // Wrapped calculation logic matches base pipeline
                     end
-                end
+
+		//macAs, Ws
+			if (data_rvalid_i && (count_q == (VL-1)))
+        			snapshot_valid_o = 1'b1;
+                	end//[stev] - besware of counter val
+		//end
             end
 
             DONE: begin

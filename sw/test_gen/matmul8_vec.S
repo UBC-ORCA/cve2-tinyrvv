@@ -1308,9 +1308,53 @@ mac_mem_test_v31:
     VMAC64(31,992,10)
     ret
 
+// void load_act_scales(const uint8_t *base);
+// a0 = base address
+
+.globl load_act_scales
+load_act_scales:
+    lw  t0, 0(a0)
+    lw  t1, 4(a0)
+    ret
+
+.globl load_w_scales
+load_w_scales:
+    lw  t2, 0(a0)
+    lw  t3, 4(a0)
+    ret
 
 
+/*
+31      30 29           25 24      20 19      15 14    12 11         7 6      0
++---------+---------------+----------+----------+--------+------------+--------+
+| unused  | t3[4:0]       | t1       | t0       |cf_id   | t2         |1011011 |
+| [1:0]   |               |          |          | [2:0]  |            |        |
++---------+---------------+----------+----------+--------+------------+--------+
 
+Bits:
+[31:30] = unused[1:0]
+[29:25] = t3[4:0]
+[24:20] = t1
+[19:15] = t0
+[14:12] = cf_id[2:0]
+[11:7] = t2
+[6:0] = 1011011 (custom-2 opcode)
+*/
+
+
+#define MAC_SCALE_ACC(t0,t1,t2,t3) \
+.word ((((t3) & 0x1F) << 25) | \
+       (((t1) & 0x1F) << 20) | \
+       (((t0) & 0x1F) << 15) | \
+       (0 << 12) | \
+       (((t2) & 0x1F) << 7) | \
+       CUSTOM2)
+
+
+.globl mac_scale_acc
+mac_scale_acc:
+    MAC_SCALE_ACC(5,6,7,28)
+    ret
 
 //[end]
 
