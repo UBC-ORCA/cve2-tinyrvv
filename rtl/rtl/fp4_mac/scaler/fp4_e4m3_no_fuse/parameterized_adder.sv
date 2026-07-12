@@ -40,7 +40,22 @@ import fp4_pkg::*;
     logic [EXT_MANT_WIDTH:0] norm_mant;
     logic [3:0]  lzc; 
 
-    always_comb begin
+    always_comb begin 
+
+        /* 
+            Default initializations
+        */
+        logic [EXT_MANT_WIDTH-1:0] lost_bits = 'b0;
+        logic [6:0] r_mant = 'b0;
+        logic  g, r, s, round_up;
+        g = 1'b0;
+        r = 1'b0;
+        s = 'b0;
+        round_up = 'b0;
+        op_res = 'b0;
+        lzc = 'b0;
+
+
         // ---------------------------------------------------------------------
         // 1. OPERAND SORTING & EXPONENT ALIGNMENT
         // ---------------------------------------------------------------------
@@ -64,7 +79,6 @@ import fp4_pkg::*;
             min_mant_shifted = '0;
             if (min_mant != '0) min_mant_shifted[0] = 1'b1; 
         end else begin
-            logic [EXT_MANT_WIDTH-1:0] lost_bits;
             lost_bits = min_mant << (EXT_MANT_WIDTH - exp_diff);
             min_mant_shifted = min_mant >> exp_diff;
             if (lost_bits != '0) min_mant_shifted[0] = 1'b1;
@@ -123,8 +137,7 @@ import fp4_pkg::*;
         // 4. ROUNDING (Round to Nearest, Ties to Even) & PACKING
         // ---------------------------------------------------------------------
         if (sum_mant_ext != '0) begin
-            logic [6:0] r_mant;
-            logic       g, r, s, round_up;
+ 
 
             // --- FIXED BIT INDEXING HERE ---
             r_mant = norm_mant[9:3]; // Extract ONLY the 7 fractional mantissa bits

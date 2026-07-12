@@ -1,6 +1,6 @@
-`define MXE8M0_BIAS 127
+`timescale 1ns / 1ps
 
-module fp4_scale_acc_e4m3 
+module e4m3_scale 
 import fp4_pkg::*;
 (
     input logic signed [15:0] acc_q14_2_in, 
@@ -17,7 +17,7 @@ import fp4_pkg::*;
         .A8(a_scale_in), 
         .B8(w_scale_in),
         .q14_2_C_in(acc_q14_2_in),
-        .PAB(prod_abc),
+        .PABC(prod_abc),
         .isNaN(isNaN), 
         .isZero(isZero)
     );
@@ -25,7 +25,7 @@ import fp4_pkg::*;
     parameterized_adder u_add (
         .a(bf16_in),
         .b(prod_abc), 
-        .out(bf16_out)
+        .sum(bf16_out)
     );
 
 endmodule

@@ -1,0 +1,137 @@
+CAPI=2:
+# Copyright (c) 2025 Eclipse Foundation
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "orca:cve2:fp4_scale:0.1"
+description: "CVE2 Scale Unit (Aritmethic Only) Configurations"
+
+filesets:
+  files_rtl:
+    files:
+      - rtl/fp4_mac/fp4_pkg.sv
+    file_type: systemVerilogSource
+
+  files_nve4m3_scaling_no_fuse: 
+    files: 
+      - rtl/fp4_mac/scaler/fp4_e4m3_no_fuse/e4m3_scale.sv
+      - rtl/fp4_mac/scaler/fp4_e4m3_no_fuse/parameterized_adder.sv
+      - rtl/fp4_mac/scaler/fp4_e4m3_no_fuse/fp4_e4m3_scale_mul.sv
+    file_type: systemVerilogSource
+
+  files_e8m0_scaling_no_fuse:
+    files:
+      - rtl/fp4_mac/scaler/fp4_e8m0/bf16_accumulate.sv
+      - rtl/fp4_mac/scaler/fp4_e8m0/e8m0_scale.sv
+      - rtl/fp4_mac/scaler/fp4_e8m0/int16_to_bf16.sv
+      - rtl/fp4_mac/scaler/fp4_e8m0/mac_scale_accum.sv
+      - rtl/fp4_mac/scaler/fp4_e8m0/parameterized_adder.sv
+    file_type: systemVerilogSource
+
+  files_lint_verilator:
+    files:
+      - lint/verilator_waiver.vlt: {file_type: vlt}
+
+  files_lint_verible:
+    files:
+      - lint/verible_waiver.vbw: {file_type: veribleLintWaiver}
+
+  files_check_tool_requirements:
+    depend:
+     - lowrisc:tool:check_tool_requirements
+
+parameters:
+  SYNTHESIS:
+    datatype: bool
+    paramtype: vlogdefine
+
+targets:
+  default: &default_target
+    filesets:
+      - tool_verilator ? (files_lint_verilator)
+      - tool_veriblelint ? (files_lint_verible)
+      - files_rtl
+    parameters:
+      - tool_vivado ? (FPGA_XILINX=true)
+
+  lint_shared: &lint_shared
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          # RAM primitives wider than 64bit (required for ECC) fail to build in
+          # Verilator without increasing the unroll count (see Verilator#1266)
+          - "--unroll-count 72"
+          - "--no-export"
+      
+  lint_scale_e4m3_no_fuse:
+    <<: *default_target
+    <<: *lint_shared
+    parameters:
+      - SYNTHESIS=true
+    filesets_append:
+      - files_nve4m3_scaling_no_fuse
+    toplevel: e4m3_scale 
+
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          # RAM primitives wider than 64bit (required for ECC) fail to build in
+          # Verilator without increasing the unroll count (see Verilator#1266)
+          - "--unroll-count 72"
+          - "--no-export"
+
+  lint_scale_e4m3_no_fuse_mul_only:
+    <<: *default_target
+    <<: *lint_shared
+    parameters:
+      - SYNTHESIS=true
+    filesets_append:
+      - files_nve4m3_scaling_no_fuse
+    toplevel: e4m3_mul 
+
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          # RAM primitives wider than 64bit (required for ECC) fail to build in
+          # Verilator without increasing the unroll count (see Verilator#1266)
+          - "--unroll-count 72"
+          - "--no-export"
+
+  lint_scale_e8m0_no_fuse:
+    <<: *default_target
+    <<: *lint_shared
+    parameters:
+      - SYNTHESIS=true
+    filesets_append:
+      - files_e8m0_scaling_no_fuse
+
+    toplevel: e8m0_scale
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          # RAM primitives wider than 64bit (required for ECC) fail to build in
+          # Verilator without increasing the unroll count (see Verilator#1266)
+          - "--unroll-count 72"
+          - "--no-export"
+
+  format:
+    filesets:
+      - files_rtl
+    parameters:
+      - SYNTHESIS=true
+    default_tool: veribleformat
+    toplevel: cve2_core
+    tools:
+      veribleformat:
+        verible_format_args:
+          - "--inplace"

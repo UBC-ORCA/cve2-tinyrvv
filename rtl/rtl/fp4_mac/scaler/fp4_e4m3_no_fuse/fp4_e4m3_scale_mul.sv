@@ -1,4 +1,4 @@
-
+`timescale 1ns / 1ps
 
 
 /*
@@ -12,14 +12,14 @@ import fp4_pkg::*;
     input fp4_scaler_e4m3_t e4m3,
     output logic [2:0] normalized_mant,
     output logic [OUTPUT_EXP_BITS-1:0] normalized_exp, 
-    output logic is_subnormal, 
     output logic is_zero,
     output logic is_nan
 );
 
-    localparam logic [OUTPUT_EXP_BITS-1:0] E4M3_BIAS = 'd8;
+    localparam logic [OUTPUT_EXP_BITS-1:0] E4M3_BIAS = 'd7;
     localparam logic [OUTPUT_EXP_BITS-1:0] OUT_BIAS = (1 << (OUTPUT_EXP_BITS - 1)) - 1;
     logic [3:0] sub_shift_l;
+    logic is_subnormal;
 
     assign is_zero = e4m3[6:0] == 'b0;
     assign is_subnormal = (e4m3.exp == 'b0) && (!is_zero);
@@ -55,7 +55,7 @@ import fp4_pkg::*; (
     input fp4_scaler_e4m3_t A8,
     input fp4_scaler_e4m3_t B8,
     input logic signed [15:0] q14_2_C_in,
-    output bf16_t PABC, // E7M8 (intermediate)
+    output bf16_t PABC, // E8M7 (intermediate)
     output logic isNaN,
     output logic isZero
 );
@@ -155,9 +155,9 @@ import fp4_pkg::*; (
 
         shifted_m_pabc = TEMP_M_PABC << lzc;
         pre_round_mant = shifted_m_pabc[21:15];
-        g = shifted_m_pabc[13];
-        r = shifted_m_pabc[12];
-        s = |shifted_m_pabc[11:0];
+        g = shifted_m_pabc[14];
+        r = shifted_m_pabc[13];
+        s = |shifted_m_pabc[12:0];
 
         round_up = g & (r | s | pre_round_mant[0]);
 
