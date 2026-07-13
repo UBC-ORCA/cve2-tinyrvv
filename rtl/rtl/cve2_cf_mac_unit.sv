@@ -241,9 +241,19 @@ module cve2_cf_mac_unit
         .mv_mode_i            (mv_mode),
         .mv_even_col_idx_i    (mv_even_col_idx),
         .mv_odd_col_idx_i     (mv_odd_col_idx),
-        .mv_row_idx_i         (mv_row_idx),
-        .mv_data_o            (mv_data)
+        //.mv_data_o            (mv_data),
+        .mv_row_idx_i         (mv_row_idx)
     );
+
+
+//TEMP CONVERT FOR MV2
+	assign mv_data =
+            {
+                scale_accum_tile [mv_row_idx][mv_odd_col_idx],
+                scale_accum_tile [mv_row_idx][mv_even_col_idx]
+            };
+
+
 
     mac_scale_fsm #(
         .NUM_GROUPS(16)
@@ -379,35 +389,168 @@ end
     //end
 
 //to_RM
-always_comb begin
-
-    // ------------------------------------------------------------
-    // Fake MX scales
-    // ------------------------------------------------------------
-   // scaleA[0] = 8'h7F;
-   // scaleA[1] = 8'h80;
-   // scaleA[2] = 8'h81;
-  //  scaleA[3] = 8'h82;
-
-  //  scaleB[0] = 8'h7F;
-  //  scaleB[1] = 8'h7E;
-  //  scaleB[2] = 8'h7D;
-  //  scaleB[3] = 8'h7C;
-
+//always_comb begin
 
     // ------------------------------------------------------------
     // Fake BF16 accumulator values
     // Give each group a unique starting point
     // ------------------------------------------------------------
-    scale_accum_in[0] = 16'h4300;
-    scale_accum_in[1] = 16'h4400;
-    scale_accum_in[2] = 16'h4500;
-    scale_accum_in[3] = 16'h4600;
+ //   scale_accum_in[0] = 16'h4300;
+//    scale_accum_in[1] = 16'h4400;
+//    scale_accum_in[2] = 16'h4500;
+//    scale_accum_in[3] = 16'h4600;
+
+//end
+
+//------------------------------------------------------------
+// Read four accumulator cells
+//------------------------------------------------------------
+
+always_comb begin
+
+    if (!scale_row_sel) begin
+
+        scale_accum_in[0] = scale_accum_tile[0][scale_col];
+        scale_accum_in[1] = scale_accum_tile[2][scale_col];
+        scale_accum_in[2] = scale_accum_tile[4][scale_col];
+        scale_accum_in[3] = scale_accum_tile[6][scale_col];
+
+    end
+    else begin
+
+        scale_accum_in[0] = scale_accum_tile[1][scale_col];
+        scale_accum_in[1] = scale_accum_tile[3][scale_col];
+        scale_accum_in[2] = scale_accum_tile[5][scale_col];
+        scale_accum_in[3] = scale_accum_tile[7][scale_col];
+
+    end
 
 end
+
+//BRAM emulation here
+logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
+
+//------------------------------------------------------------
+// Software BRAM model
+// 8x8 accumulator tile
+//------------------------------------------------------------
+
+integer r,c;
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+
+    if (!rst_ni) begin
+
+        for (r=0; r<TT; r++) begin
+            for (c=0; c<TT; c++) begin
+                scale_accum_tile[r][c] <= 16'h0000;
+            end
+        end
+
+    end
+    else begin
+
+        if (scale_busy) begin
+
+            if (!scale_row_sel) begin
+
+                scale_accum_tile[0][scale_col] <= scale_accum_out[0];
+                scale_accum_tile[2][scale_col] <= scale_accum_out[1];
+                scale_accum_tile[4][scale_col] <= scale_accum_out[2];
+                scale_accum_tile[6][scale_col] <= scale_accum_out[3];
+
+            end
+            else begin
+
+                scale_accum_tile[1][scale_col] <= scale_accum_out[0];
+                scale_accum_tile[3][scale_col] <= scale_accum_out[1];
+                scale_accum_tile[5][scale_col] <= scale_accum_out[2];
+                scale_accum_tile[7][scale_col] <= scale_accum_out[3];
+
+            end
+        end
+    end
+end
+
 //to_RM_end
 
 // --- [stev] ---
+// ------------------------------------------------------------
+// Scale Accumulator Tile Dump
+// ------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+
+        $display("");
+        $display("======================================================");
+        $display("[%0t] SCALE ACCUMULATOR", $time);
+        $display("======================================================");
+
+        $display("FSM:");
+        $display("  row_sel=%0d col=%0d busy=%0b done=%0b",
+                 scale_row_sel,
+                 scale_col,
+                 scale_busy,
+                 scale_done);
+
+        $display("");
+
+        $display("Selected MAC Tile:");
+        $display("  tile = {%0d, %0d, %0d, %0d}",
+                 scale_tile_value[0],
+                 scale_tile_value[1],
+                 scale_tile_value[2],
+                 scale_tile_value[3]);
+
+        $display("");
+
+        $display("Scale Factors:");
+        $display("  A = {%02x,%02x,%02x,%02x}",
+                 scaleA[0],
+                 scaleA[1],
+                 scaleA[2],
+                 scaleA[3]);
+
+        $display("  B = {%02x,%02x,%02x,%02x}",
+                 scaleB[0],
+                 scaleB[1],
+                 scaleB[2],
+                 scaleB[3]);
+
+        $display("");
+
+        $display("Accumulator:");
+        $display("  IN  = {%04h,%04h,%04h,%04h}",
+                 scale_accum_in[0],
+                 scale_accum_in[1],
+                 scale_accum_in[2],
+                 scale_accum_in[3]);
+
+        $display("  OUT = {%04h,%04h,%04h,%04h}",
+                 scale_accum_out[0],
+                 scale_accum_out[1],
+                 scale_accum_out[2],
+                 scale_accum_out[3]);
+
+        $display("");
+
+        $display("Accumulated BF16 Tile:");
+
+        for (int r = 0; r < TT; r++) begin
+            $write("Row %0d :", r);
+            for (int c = 0; c < TT; c++) begin
+                $write(" %04h", scale_accum_tile[r][c]);
+            end
+            $write("\n");
+        end
+
+        $display("======================================================");
+        $display("");
+
+    end
+end
+
+
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
         $display("[%0t] [SCALE] row_sel=%0b col=%0d rows={%0d,%0d,%0d,%0d} tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
