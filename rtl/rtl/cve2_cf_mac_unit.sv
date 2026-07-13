@@ -75,9 +75,11 @@ module cve2_cf_mac_unit
     //------------------------------------------------------------
     // Scale Processing Datapath Interconnect Intermediates
     //------------------------------------------------------------
-    logic signed [15:0] scale0, scale1, scale2, scale3;
-    logic [2:0]         scale_col;
-    logic               scale_row_sel;
+    logic [2:0] scale_col;    
+    logic       scale_row_sel;
+
+    // Selected tile values feeding scale units
+    logic signed [15:0] scale_tile_value [0:3];
 
     // Direct real-time pulse triggers out from controller
     logic [31:0]        act_scale_lo, act_scale_hi;
@@ -220,8 +222,6 @@ module cve2_cf_mac_unit
         .mac_snapshot_valid_o (snapshot_valid),
         .scale_busy_i         (scale_busy),
         .scale_done_i         (scale_done),
-        .scale_col_o          (scale_col),
-        .scale_row_sel_o      (scale_row_sel),
         .req_ready_o          (req_ready_o),
         .busy_o               (busy_o),
         .done_o               (done_o)
@@ -242,13 +242,7 @@ module cve2_cf_mac_unit
         .mv_even_col_idx_i    (mv_even_col_idx),
         .mv_odd_col_idx_i     (mv_odd_col_idx),
         .mv_row_idx_i         (mv_row_idx),
-        .mv_data_o            (mv_data),
-        .scale0_o             (scale0),
-        .scale1_o             (scale1),
-        .scale2_o             (scale2),
-        .scale3_o             (scale3),
-        .scale_col_i          (scale_col),
-        .scale_row_sel_i      (scale_row_sel)
+        .mv_data_o            (mv_data)
     );
 
     mac_scale_fsm #(
@@ -264,8 +258,39 @@ module cve2_cf_mac_unit
         .weight_scale_hi_i    (ctx_weight_scale_hi),
         .tile_snapshot_i      (ctx_tile_snapshot),
         .scale_busy_o         (scale_busy),
-        .scale_done_o         (scale_done)
+        .scale_done_o         (scale_done),
+	.scale_col_o	      (scale_col),
+	.scale_row_sel_o      (scale_row_sel)
     );
+
+    //------------------------------------------------------------
+    // SCALE TILE SELECTION
+    //
+    // Four scale units process one column at a time.
+    // Each unit receives one value from a row pair.
+    //
+    // scale_row_sel = 0:
+    //   rows 0,2,4,6
+    //
+    // scale_row_sel = 1:
+    //   rows 1,3,5,7
+    //------------------------------------------------------------
+
+    always_comb begin
+
+        scale_tile_value[0] =
+            tile_snapshot[scale_row_sel ? 1 : 0][scale_col];
+
+        scale_tile_value[1] =
+            tile_snapshot[scale_row_sel ? 3 : 2][scale_col];
+
+        scale_tile_value[2] =
+            tile_snapshot[scale_row_sel ? 5 : 4][scale_col];
+
+        scale_tile_value[3] =
+            tile_snapshot[scale_row_sel ? 7 : 6][scale_col];
+
+    end
 
     //------------------------------------------------------------
     // Processing Datapath Structures (Placeholders/Verification)
@@ -275,26 +300,88 @@ module cve2_cf_mac_unit
     logic [7:0]  scaleA          [0:3];
     logic [7:0]  scaleB          [0:3];
 
-    mac_scale_accum u_scale_accum0 (.tile_value(scale0), .scaleA(scaleA[0]), .scaleB(scaleB[0]), .accumulator(scale_accum_in[0]), .accumulator_out(scale_accum_out[0]));
-    mac_scale_accum u_scale_accum1 (.tile_value(scale1), .scaleA(scaleA[1]), .scaleB(scaleB[1]), .accumulator(scale_accum_in[1]), .accumulator_out(scale_accum_out[1]));
-    mac_scale_accum u_scale_accum2 (.tile_value(scale2), .scaleA(scaleA[2]), .scaleB(scaleB[2]), .accumulator(scale_accum_in[2]), .accumulator_out(scale_accum_out[2]));
-    mac_scale_accum u_scale_accum3 (.tile_value(scale3), .scaleA(scaleA[3]), .scaleB(scaleB[3]), .accumulator(scale_accum_in[3]), .accumulator_out(scale_accum_out[3]));
+    mac_scale_accum u_scale_accum0 (
+        .tile_value(scale_tile_value[0]),
+        .scaleA(scaleA[0]),
+        .scaleB(scaleB[0]),
+        .accumulator(scale_accum_in[0]),
+        .accumulator_out(scale_accum_out[0])
+    );
 
-    always_comb begin
-        scaleA[0] = 8'h7F;  scaleA[1] = 8'h80;  scaleA[2] = 8'h7E;  scaleA[3] = 8'h80; //[stev] - need to collect these
-        scaleB[0] = 8'h7F;  scaleB[1] = 8'h7F;  scaleB[2] = 8'h7F;  scaleB[3] = 8'h80;
-        scale_accum_in[0] = 16'h4302; scale_accum_in[1] = 16'h4302; scale_accum_in[2] = 16'h4302; scale_accum_in[3] = 16'h4302;
-    end
+    mac_scale_accum u_scale_accum1 (
+        .tile_value(scale_tile_value[1]),
+        .scaleA(scaleA[1]),
+        .scaleB(scaleB[1]),
+        .accumulator(scale_accum_in[1]),
+        .accumulator_out(scale_accum_out[1])
+    );
+
+    mac_scale_accum u_scale_accum2 (
+        .tile_value(scale_tile_value[2]),
+        .scaleA(scaleA[2]),
+        .scaleB(scaleB[2]),
+        .accumulator(scale_accum_in[2]),
+        .accumulator_out(scale_accum_out[2])
+    );
+
+    mac_scale_accum u_scale_accum3 (
+        .tile_value(scale_tile_value[3]),
+        .scaleA(scaleA[3]),
+        .scaleB(scaleB[3]),
+        .accumulator(scale_accum_in[3]),
+        .accumulator_out(scale_accum_out[3])
+    );
+
+//    always_comb begin
+  //      scaleA[0] = 8'h7F;  scaleA[1] = 8'h80;  scaleA[2] = 8'h7E;  scaleA[3] = 8'h80; //[stev] - need to collect these
+   //     scaleB[0] = 8'h7F;  scaleB[1] = 8'h7F;  scaleB[2] = 8'h7F;  scaleB[3] = 8'h80;
+    //    scale_accum_in[0] = 16'h4302; scale_accum_in[1] = 16'h4302; scale_accum_in[2] = 16'h4302; scale_accum_in[3] = 16'h4302;
+    //end
+
+//to_RM
+always_comb begin
+
+    // ------------------------------------------------------------
+    // Fake MX scales
+    // ------------------------------------------------------------
+    scaleA[0] = 8'h7F;
+    scaleA[1] = 8'h80;
+    scaleA[2] = 8'h81;
+    scaleA[3] = 8'h82;
+
+    scaleB[0] = 8'h7F;
+    scaleB[1] = 8'h7E;
+    scaleB[2] = 8'h7D;
+    scaleB[3] = 8'h7C;
+
+
+    // ------------------------------------------------------------
+    // Fake BF16 accumulator values
+    // Give each group a unique starting point
+    // ------------------------------------------------------------
+    scale_accum_in[0] = 16'h4300;
+    scale_accum_in[1] = 16'h4400;
+    scale_accum_in[2] = 16'h4500;
+    scale_accum_in[3] = 16'h4600;
+
+end
+//to_RM_end
 
 // --- [stev] ---
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
-        $display("[%0t] [SCALE] tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
+        $display("[%0t] [SCALE] row_sel=%0b col=%0d rows={%0d,%0d,%0d,%0d} tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
                  $time,
-                 scale0,
-                 scale1,
-                 scale2,
-                 scale3,
+                 scale_row_sel,
+                 scale_col,
+                 (scale_row_sel ? 1 : 0),
+                 (scale_row_sel ? 3 : 2),
+                 (scale_row_sel ? 5 : 4),
+                 (scale_row_sel ? 7 : 6),
+                 scale_tile_value[0],
+                 scale_tile_value[1],
+                 scale_tile_value[2],
+                 scale_tile_value[3],
                  scale_accum_in[0],
                  scale_accum_in[1],
                  scale_accum_in[2],

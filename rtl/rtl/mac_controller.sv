@@ -70,11 +70,7 @@ module mac_controller #(
 
     // Scale FSM handshake ports
     input  logic                 scale_busy_i,
-    input  logic                 scale_done_i,
-
-    // SCALE Unused
-    output logic [2:0]           scale_col_o, 
-    output logic                 scale_row_sel_o 
+    input  logic                 scale_done_i
 );
 
     logic [31:0] act_scale_lo_q;
@@ -264,9 +260,6 @@ module mac_controller #(
         act_scale_ready_o    = act_scale_pulse;
         weight_scale_ready_o = weight_scale_pulse;
         mac_snapshot_valid_o = snapshot_valid_q;
-
-        scale_col_o     = '0;
-        scale_row_sel_o = 1'b0;
 
         case (state_q)
             IDLE: begin

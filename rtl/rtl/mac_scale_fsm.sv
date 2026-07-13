@@ -19,7 +19,11 @@ module mac_scale_fsm #(
 
     // Handshake status signals back to controller
     output logic                 scale_busy_o,
-    output logic                 scale_done_o
+    output logic                 scale_done_o,
+
+    // Patch 1: Scale datapath indexing outputs
+    output logic [2:0]           scale_col_o,
+    output logic                 scale_row_sel_o
 );
 
     //--------------------------------------------------------------------------
@@ -35,6 +39,10 @@ module mac_scale_fsm #(
     
     localparam int CNT_W = $clog2(NUM_GROUPS);
     logic [CNT_W-1:0] count_q, count_d;
+
+    // Patch 2: Index tracking registers
+    logic [2:0]       scale_col_q;
+    logic             scale_row_sel_q;
 
     // Self-contained internal context storage registers
     logic [31:0]          act_scale_lo_q;
@@ -54,6 +62,11 @@ module mac_scale_fsm #(
             act_scale_hi_q    <= '0;
             weight_scale_lo_q <= '0;
             weight_scale_hi_q <= '0;
+            
+            // Patch 3: Register reset for index signals
+            scale_col_q       <= '0;
+            scale_row_sel_q   <= 1'b0;
+
             for (int r = 0; r < 8; r++) begin
                 for (int c = 0; c < 8; c++) begin
                     tile_snapshot_q[r][c] <= '0;
@@ -62,6 +75,10 @@ module mac_scale_fsm #(
         end else begin
             state_q <= state_d;
             count_q <= count_d;
+
+            // Update registered tracking copies along with the current count update
+            scale_col_q     <= count_d[3:1];
+            scale_row_sel_q <= count_d[0];
 
             // Latch execution context exactly on the cycle the handshake matches
             if ((state_q == IDLE) && context_ready_i) begin
@@ -113,5 +130,11 @@ module mac_scale_fsm #(
     assign context_accept_o = (state_q == IDLE) && context_ready_i;
     assign scale_busy_o     = (state_q == RUN);
     assign scale_done_o     = (state_q == DONE);
+
+    // Patch 2: Generate dynamic indexing directly mapping counter to active matrix groups
+    always_comb begin
+        scale_col_o     = count_q[3:1]; // count_q >> 1
+        scale_row_sel_o = count_q[0];
+    end
 
 endmodule

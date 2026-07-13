@@ -53,15 +53,7 @@ module mac_array #(
 	input logic [2:0] mv_even_col_idx_i,
 	input logic [2:0] mv_odd_col_idx_i,
 	input logic [2:0] mv_row_idx_i,
-output logic [31:0] mv_data_o,
-
-//for scale
-output logic signed [15:0] scale0_o,
-output logic signed [15:0] scale1_o,
-output logic signed [15:0] scale2_o,
-output logic signed [15:0] scale3_o,
-input logic [2:0] scale_col_i,
-input logic       scale_row_sel_i
+output logic [31:0] mv_data_o
 
 );
 
@@ -204,14 +196,7 @@ always_comb begin
 end
 //MV_rd_end
 
-//SCALE
-always_comb begin
-    scale0_o = accum_o[scale_row_sel_i ? 1 : 0][scale_col_i];
-    scale1_o = accum_o[scale_row_sel_i ? 3 : 2][scale_col_i];
-    scale2_o = accum_o[scale_row_sel_i ? 5 : 4][scale_col_i];
-    scale3_o = accum_o[scale_row_sel_i ? 7 : 6][scale_col_i];
-end
-//SCALE_end
+
 
 
 // --- [stev] ---
