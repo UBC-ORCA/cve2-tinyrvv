@@ -1,393 +1,292 @@
 `timescale 1ns/1ps
-/******************************************************************************
- *
- * cve2_cf_mac_unit.sv
- *
- * Wrapper between the CVE2 custom-function interface and the MAC array.
- *
- * Responsibilities
- *   - Parse packed FP4 operands from rs1/rs2
- *   - Instantiate MAC controller
- *   - Instantiate MAC array
- *   - Connect controller outputs to MAC array inputs
- *
- ******************************************************************************/
 
 module cve2_cf_mac_unit
 (
+    // Unused or specialized scalar connections
+    output logic                      scalar_we_o,
+    output logic [4:0]                scalar_waddr_o,
+    output logic [31:0]               scalar_wdata_o,
 
-// --- [stev] --- unused signals
-   output logic                     scalar_we_o,
-    output logic [4:0]               scalar_waddr_o,
-    output logic [31:0]              scalar_wdata_o,
+    // Primary System Memory Interconnect Interface
+    output logic                      data_req_o,
+    input  logic                      data_gnt_i,
+    output logic [31:0]               data_addr_o,
+    output logic                      data_we_o,
+    output logic [3:0]                data_be_o,
+    output logic [31:0]               data_wdata_o,
 
-    output logic                     data_req_o,
-    input  logic                     data_gnt_i,
-    output logic [31:0]              data_addr_o,
-    output logic                     data_we_o,
-    output logic [3:0]               data_be_o,
-    output logic [31:0]              data_wdata_o,
+    input  logic [31:0]               data_rdata_i,
+    input  logic                      data_rvalid_i,
+    input  logic                      data_err_i,
 
-    input  logic [31:0]              data_rdata_i,
-    input  logic                     data_rvalid_i,
-    input  logic                     data_err_i,
+    input  logic                      clk_i,
+    input  logic                      rst_ni,
 
-// --- [end] ---
+    // CVE2 Pipeline execution Request Interface
+    input  logic                      req_valid_i,
+    input  cve2_pkg::mac_op_e         cf_req_op_i,
+    input  logic [31:0]               req_instr_i,
+    input  logic [31:0]               req_rs1_i,
+    input  logic [31:0]               req_rs2_i,
 
+    // Wrapper Global Status Signals
+    output logic                      req_ready_o,
+    output logic                      busy_o,
+    output logic                      done_o,
 
-
-    input  logic                     clk_i,
-    input  logic                     rst_ni,
-
-    //------------------------------------------------------------
-    // CVE2 request interface
-    //------------------------------------------------------------
-
-    input  logic                     req_valid_i,
-    input  cve2_pkg::mac_op_e        cf_req_op_i,
-
-    input  logic [31:0]              req_instr_i,
-    input  logic [31:0]              req_rs1_i,
-    input  logic [31:0]              req_rs2_i,
-
-    //------------------------------------------------------------
-    // Status
-    //------------------------------------------------------------
-
-    output logic                     req_ready_o,
-    output logic                     busy_o,
-    output logic                     done_o,
-
-// --- [stev] ---
-output logic [4:0] mac_vrf_raddr_o,
-output  logic [2:0]   mac_vrf_relem_o,
-input logic [31:0]   mac_vrf_rdata_i
-
-// Weight memory interface
-//output logic [31:0] weight_addr_o
-
-
-// --- [end] ---
+    // Vector Register File Interface
+    output logic [4:0]                mac_vrf_raddr_o,
+    output logic [2:0]                mac_vrf_relem_o,
+    input  logic [31:0]               mac_vrf_rdata_i
 );
-
-
-// --- [stev] ---
-    //------------------------------------------------------------
-    // Decoded VMAC instruction fields
-    //------------------------------------------------------------
-
-    // Temporary VMAC encoding:
-    // [11:7]   = vs1 (vector source register)
-    // [24:20]  = weight block index
-    // req_rs1_i = base pointer
-//TO BE RM
-    logic [4:0] vs1;
-logic [11:0] imm12;
-    logic [31:0] weight_base;
-logic [31:0] weight_addr;
-
-    assign vs1        = req_instr_i[11:7];
-assign imm12       = req_instr_i[31:20];
-    assign weight_addr = weight_base + {{20{imm12[11]}}, imm12};
-    assign weight_base = req_rs1_i;
-
-// mv
-    logic [4:0] mv_row  = req_instr_i[19:15];
-    logic [4:0] mv_pair = req_instr_i[24:20];
-
-	logic        mv_en;
-	logic [1:0]  mv_mode;   // 0=even 1=odd 2=pair
-	logic [2:0] mv_even_col_idx;
-	logic [2:0] mv_odd_col_idx;
-	logic [2:0] mv_row_idx;
-logic [31:0] mv_data;
-assign scalar_wdata_o = mv_data;
-
-    logic [4:0] scalar_waddr;
-
-        assign scalar_waddr = req_instr_i[11:7];
-
-
-// SCALE
-logic signed [15:0] scale0;
-logic signed [15:0] scale1;
-logic signed [15:0] scale2;
-logic signed [15:0] scale3;
-logic [2:0] scale_col;
-logic       scale_row_sel;
-
-//macAs, Ws
-logic [31:0] act_scale_lo;
-logic [31:0] act_scale_hi;
-
-logic [31:0] weight_scale_lo;
-logic [31:0] weight_scale_hi;
-
-
-logic act_scale_ready;
-logic weight_scale_ready;
-
-    logic signed [15:0] tile_snapshot [0:TT-1][0:TT-1];
-logic snapshot_valid;
-
-
-//end
-
-//SCALE_end
-
-//------------------------------------------------------------
-// Scale accumulators
-//------------------------------------------------------------
-
-// BF16 BRAM values (placeholder until BRAM is connected)
-logic [15:0] scale_accum_in [0:3];
-
-// Updated BRAM values
-logic [15:0] scale_accum_out [0:3];
-
-// Scale factors (replace with real source later)
-logic [7:0] scaleA [0:3];
-logic [7:0] scaleB [0:3];
-
-
-// --- [end] ---
-
-// --- [stev] ---
-//------------------------------------------------------------
-// Controller -> Memory interface
-//------------------------------------------------------------
-
-logic        mem_req;
-logic [31:0] mem_addr;
-logic        mem_we;
-logic [3:0]  mem_be;
-logic [31:0] mem_wdata;
-
-assign data_req_o   = mem_req;
-assign data_addr_o  = mem_addr;
-assign data_we_o    = mem_we;
-assign data_be_o    = mem_be;
-assign data_wdata_o = mem_wdata;
-// --- [end] ---
-
 
     localparam int TT = 8;
 
     //------------------------------------------------------------
-    // Controller -> MAC array
+    // Decoded Pipeline Instruction Configurations
     //------------------------------------------------------------
+    logic [4:0]  vs1;
+    logic [11:0] imm12;
+    logic [31:0] weight_base;
+    logic [31:0] weight_addr;
 
-    logic mac_en;
-    logic clear;
+    assign vs1         = req_instr_i[11:7];
+    assign imm12       = req_instr_i[31:20];
+    assign weight_base = req_rs1_i;
+    assign weight_addr = weight_base + {{20{imm12[11]}}, imm12};
+
+    // Instruction field parsing for moves
+    logic [4:0]  mv_row;
+    logic [4:0]  mv_pair;
+    assign mv_row  = req_instr_i[19:15];
+    assign mv_pair = req_instr_i[24:20];
+
+    logic        mv_en;
+    logic [1:0]  mv_mode;   
+    logic [2:0]  mv_even_col_idx;
+    logic [2:0]  mv_odd_col_idx;
+    logic [2:0]  mv_row_idx;
+    logic [31:0] mv_data;
+    assign scalar_wdata_o = mv_data;
+
+    logic [4:0]  scalar_waddr;
+    assign scalar_waddr = req_instr_i[11:7];
 
     //------------------------------------------------------------
-    // Unpacked FP4 vectors
+    // Scale Processing Datapath Interconnect Intermediates
     //------------------------------------------------------------
+    logic signed [15:0] scale0, scale1, scale2, scale3;
+    logic [2:0]         scale_col;
+    logic               scale_row_sel;
 
-    logic [3:0] act_vector [0:TT-1];
-    logic [3:0] weight_vector [0:TT-1];
+    // Direct real-time pulse triggers out from controller
+    logic [31:0]        act_scale_lo, act_scale_hi;
+    logic [31:0]        weight_scale_lo, weight_scale_hi;
+    logic               act_scale_ready, weight_scale_ready;
+    logic               snapshot_valid;
+
+    // Global matrix snapshot configurations
+    logic signed [15:0] tile_snapshot [0:TT-1][0:TT-1];
 
     //------------------------------------------------------------
-    // MAC accumulator tile
+    // WRAPPER PERSISTENT CONTEXT STORAGE AND STATE TRACKING
     //------------------------------------------------------------
+    logic               snapshot_valid_q;
+    logic               act_scale_valid_q;
+    logic               weight_scale_valid_q;
 
-    logic signed [15:0] tile_accum [0:TT-1][0:TT-1];
+    logic [31:0]        ctx_act_scale_lo;
+    logic [31:0]        ctx_act_scale_hi;
+    logic [31:0]        ctx_weight_scale_lo;
+    logic [31:0]        ctx_weight_scale_hi;
+    logic signed [15:0] ctx_tile_snapshot [0:TT-1][0:TT-1];
 
+    logic               context_ready;
+    logic               context_accept;
+    logic               scale_busy;
+    logic               scale_done;
+
+    // Assemble persistent context assembly status
+    assign context_ready = snapshot_valid_q && act_scale_valid_q && weight_scale_valid_q;
+
+    // Context capturing and validation reset tracking block
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            snapshot_valid_q     <= 1'b0;
+            act_scale_valid_q    <= 1'b0;
+            weight_scale_valid_q <= 1'b0;
+            ctx_act_scale_lo     <= '0;
+            ctx_act_scale_hi     <= '0;
+            ctx_weight_scale_lo  <= '0;
+            ctx_weight_scale_hi  <= '0;
+            for (int r = 0; r < TT; r++) begin
+                for (int c = 0; c < TT; c++) begin
+                    ctx_tile_snapshot[r][c] <= '0;
+                end
+            end
+        end else begin
+            // 1. Capture incoming real-time pulses from sequencing controller
+            if (snapshot_valid) begin
+                snapshot_valid_q  <= 1'b1;
+                ctx_tile_snapshot <= tile_snapshot;
+            end
+
+            if (act_scale_ready) begin
+                act_scale_valid_q <= 1'b1;
+                ctx_act_scale_lo  <= act_scale_lo;
+                ctx_act_scale_hi  <= act_scale_hi;
+            end
+
+            if (weight_scale_ready) begin
+                weight_scale_valid_q <= 1'b1;
+                ctx_weight_scale_lo  <= weight_scale_lo;
+                ctx_weight_scale_hi  <= weight_scale_hi;
+            end
+
+            // 2. Clear out state flags simultaneously when the Scale processing engine consumes them
+            if (context_accept) begin
+                snapshot_valid_q     <= 1'b0;
+                act_scale_valid_q    <= 1'b0;
+                weight_scale_valid_q <= 1'b0;
+            end
+        end
+    end
 
     //------------------------------------------------------------
-    // MAC controller
+    // Submodule Core Instantiations
     //------------------------------------------------------------
+    logic        mac_en;
+    logic        clear;
+    logic [3:0]  act_vector [0:TT-1];
+    logic [3:0]  weight_vector [0:TT-1];
+    
+    // Internal interconnect mapping
+    logic        mem_req;
+    logic [31:0] mem_addr;
+    logic        mem_we;
+    logic [3:0]  mem_be;
+    logic [31:0] mem_wdata;
 
-    mac_controller u_ctrl
-    (
-        .clk_i(clk_i),
-        .rst_ni(rst_ni),
+    assign data_req_o   = mem_req;
+    assign data_addr_o  = mem_addr;
+    assign data_we_o    = mem_we;
+    assign data_be_o    = mem_be;
+    assign data_wdata_o = mem_wdata;
 
-        .req_valid_i(req_valid_i),
-        .cf_req_op_i(cf_req_op_i),
-
-        .rs1_i(req_rs1_i),
-        .rs2_i(req_rs2_i),
-
-        .mac_en_o(mac_en),
-        .clear_o(clear),
-
-// --- [stev] ---
-//TEMP 
-// New decoded VMAC fields
-        .vs1_i        (vs1),
-        //.weight_blk_i (weight_blk),
-        .base_i       (weight_addr),
-
-.mac_vrf_raddr_o(mac_vrf_raddr_o),
-.mac_vrf_relem_o(mac_vrf_relem_o),
-
-// [stev] - load weight
-.data_req_o   (mem_req),
-.data_gnt_i      (data_gnt_i),
-.data_addr_o  (mem_addr),
-.data_we_o    (mem_we),
-.data_be_o    (mem_be),
-.data_wdata_o (mem_wdata),
-
-// Weight memory response
-.data_rvalid_i   (data_rvalid_i),
-.data_rdata_i    (data_rdata_i), //[stev] - may not need to pass into controller
-.data_err_i      (data_err_i),
-
-// post processed rsp data
-.act_vector_o(act_vector),
-.weight_vector_o(weight_vector),
-.mac_vrf_rdata_i(mac_vrf_rdata_i),
-
-//mv
-
-      .mv_en_o(mv_en),
-	 .mv_mode_o(mv_mode),   // 0=even 1=odd 2=pair
-	.mv_even_col_idx_o(mv_even_col_idx),
-	.mv_odd_col_idx_o(mv_odd_col_idx),
-	 .mv_row_idx_o(mv_row_idx),
-  	  .mv_row_i(mv_row),       // instruction rs1 field
-    .mv_pair_i(mv_pair),      // instruction rs2 field
-
-.scalar_waddr_i(scalar_waddr),
-.scalar_waddr_o(scalar_waddr_o),
-.scalar_we_o(scalar_we_o),
-
-
-	//macAs, Ws
-
-.act_scale_lo_o(act_scale_lo),
-.act_scale_hi_o(act_scale_hi),
-
-.weight_scale_lo_o(weight_scale_lo),
-.weight_scale_hi_o(weight_scale_hi),
-
-.act_scale_ready_o(act_scale_ready),
-.weight_scale_ready_o(weight_scale_ready),
-.mac_snapshot_valid_o(snapshot_valid),
-	
-	// end
-
-
-
-
-// --- [end] ---
-
-        .req_ready_o(req_ready_o),
-        .busy_o(busy_o),
-        .done_o(done_o)
+    mac_controller #(
+        .VL(TT)
+    ) u_ctrl (
+        .clk_i                (clk_i),
+        .rst_ni               (rst_ni),
+        .req_valid_i          (req_valid_i),
+        .cf_req_op_i          (cf_req_op_i),
+        .rs1_i                (req_rs1_i),
+        .rs2_i                (req_rs2_i),
+        .mac_en_o             (mac_en),
+        .clear_o              (clear),
+        .vs1_i                (vs1),
+        .weight_blk_i         (5'b0), // Unused parameter structural tie-off
+        .base_i               (weight_addr),
+        .mac_vrf_raddr_o      (mac_vrf_raddr_o),
+        .mac_vrf_relem_o      (mac_vrf_relem_o),
+        .data_req_o           (mem_req),
+        .data_gnt_i           (data_gnt_i),
+        .data_addr_o          (mem_addr),
+        .data_we_o            (mem_we),
+        .data_be_o            (mem_be),
+        .data_wdata_o         (mem_wdata),
+        .data_rvalid_i        (data_rvalid_i),
+        .data_rdata_i         (data_rdata_i),
+        .data_err_i           (data_err_i),
+        .act_vector_o         (act_vector),
+        .weight_vector_o      (weight_vector),
+        .mac_vrf_rdata_i      (mac_vrf_rdata_i),
+        .mv_en_o              (mv_en),
+        .mv_mode_o            (mv_mode),
+        .mv_even_col_idx_o    (mv_even_col_idx),
+        .mv_odd_col_idx_o     (mv_odd_col_idx),
+        .mv_row_idx_o         (mv_row_idx),
+        .mv_row_i             (mv_row),
+        .mv_pair_i            (mv_pair),
+        .scalar_waddr_i       (scalar_waddr),
+        .scalar_waddr_o       (scalar_waddr_o),
+        .scalar_we_o          (scalar_we_o),
+        .act_scale_lo_o       (act_scale_lo),
+        .act_scale_hi_o       (act_scale_hi),
+        .weight_scale_lo_o    (weight_scale_lo),
+        .weight_scale_hi_o    (weight_scale_hi),
+        .act_scale_ready_o    (act_scale_ready),
+        .weight_scale_ready_o (weight_scale_ready),
+        .mac_snapshot_valid_o (snapshot_valid),
+        .scale_busy_i         (scale_busy),
+        .scale_done_i         (scale_done),
+        .scale_col_o          (scale_col),
+        .scale_row_sel_o      (scale_row_sel),
+        .req_ready_o          (req_ready_o),
+        .busy_o               (busy_o),
+        .done_o               (done_o)
     );
 
-    //------------------------------------------------------------
-    // MAC array
-    //------------------------------------------------------------
-
-    mac_array
-    #(
+    mac_array #(
         .TT(TT)
-    )
-    u_array
-    (
-        .clk(clk_i),
-        .rst_n(rst_ni),
-
-        .mac_en_i(mac_en),
-        .clear_i(clear),
-
-        .act_i(act_vector),
-        .wt_i(weight_vector),
-
-        //.accum_o(tile_accum),
-.accum_o(tile_snapshot),
-
-//mv
-      .mv_en_i(mv_en),
-	 .mv_mode_i(mv_mode),   // 0=even 1=odd 2=pair
-	.mv_even_col_idx_i(mv_even_col_idx),
-	.mv_odd_col_idx_i(mv_odd_col_idx),
-	 .mv_row_idx_i(mv_row_idx),
- .mv_data_o(mv_data),
-
-//SCALE
-.scale0_o(scale0),
- .scale1_o(scale1),
- .scale2_o(scale2),
- .scale3_o(scale3),
- .scale_col_i(scale_col),
-    .scale_row_sel_i(scale_row_sel)
-//SCALE_end
-
+    ) u_array (
+        .clk                  (clk_i),
+        .rst_n                (rst_ni),
+        .mac_en_i             (mac_en),
+        .clear_i              (clear),
+        .act_i                (act_vector),
+        .wt_i                 (weight_vector),
+        .accum_o              (tile_snapshot),
+        .mv_en_i              (mv_en),
+        .mv_mode_i            (mv_mode),
+        .mv_even_col_idx_i    (mv_even_col_idx),
+        .mv_odd_col_idx_i     (mv_odd_col_idx),
+        .mv_row_idx_i         (mv_row_idx),
+        .mv_data_o            (mv_data),
+        .scale0_o             (scale0),
+        .scale1_o             (scale1),
+        .scale2_o             (scale2),
+        .scale3_o             (scale3),
+        .scale_col_i          (scale_col),
+        .scale_row_sel_i      (scale_row_sel)
     );
 
-//------------------------------------------------------------
-// Four MAC scale/accumulate units
-//------------------------------------------------------------
+    mac_scale_fsm #(
+        .NUM_GROUPS(16)
+    ) u_scale_fsm (
+        .clk_i                (clk_i),
+        .rst_ni               (rst_ni),
+        .context_ready_i      (context_ready),
+        .context_accept_o     (context_accept),
+        .act_scale_lo_i       (ctx_act_scale_lo),
+        .act_scale_hi_i       (ctx_act_scale_hi),
+        .weight_scale_lo_i    (ctx_weight_scale_lo),
+        .weight_scale_hi_i    (ctx_weight_scale_hi),
+        .tile_snapshot_i      (ctx_tile_snapshot),
+        .scale_busy_o         (scale_busy),
+        .scale_done_o         (scale_done)
+    );
 
-mac_scale_accum u_scale_accum0 (
-    .tile_value      (scale0),
-    .scaleA          (scaleA[0]),
-    .scaleB          (scaleB[0]),
-    .accumulator     (scale_accum_in[0]),
-    .accumulator_out (scale_accum_out[0])
-);
+    //------------------------------------------------------------
+    // Processing Datapath Structures (Placeholders/Verification)
+    //------------------------------------------------------------
+    logic [15:0] scale_accum_in  [0:3];
+    logic [15:0] scale_accum_out [0:3];
+    logic [7:0]  scaleA          [0:3];
+    logic [7:0]  scaleB          [0:3];
 
-mac_scale_accum u_scale_accum1 (
-    .tile_value      (scale1),
-    .scaleA          (scaleA[1]),
-    .scaleB          (scaleB[1]),
-    .accumulator     (scale_accum_in[1]),
-    .accumulator_out (scale_accum_out[1])
-);
+    mac_scale_accum u_scale_accum0 (.tile_value(scale0), .scaleA(scaleA[0]), .scaleB(scaleB[0]), .accumulator(scale_accum_in[0]), .accumulator_out(scale_accum_out[0]));
+    mac_scale_accum u_scale_accum1 (.tile_value(scale1), .scaleA(scaleA[1]), .scaleB(scaleB[1]), .accumulator(scale_accum_in[1]), .accumulator_out(scale_accum_out[1]));
+    mac_scale_accum u_scale_accum2 (.tile_value(scale2), .scaleA(scaleA[2]), .scaleB(scaleB[2]), .accumulator(scale_accum_in[2]), .accumulator_out(scale_accum_out[2]));
+    mac_scale_accum u_scale_accum3 (.tile_value(scale3), .scaleA(scaleA[3]), .scaleB(scaleB[3]), .accumulator(scale_accum_in[3]), .accumulator_out(scale_accum_out[3]));
 
-mac_scale_accum u_scale_accum2 (
-    .tile_value      (scale2),
-    .scaleA          (scaleA[2]),
-    .scaleB          (scaleB[2]),
-    .accumulator     (scale_accum_in[2]),
-    .accumulator_out (scale_accum_out[2])
-);
-
-mac_scale_accum u_scale_accum3 (
-    .tile_value      (scale3),
-    .scaleA          (scaleA[3]),
-    .scaleB          (scaleB[3]),
-    .accumulator     (scale_accum_in[3]),
-    .accumulator_out (scale_accum_out[3])
-);
-
-//to_RM
-assign scale_col = 0;
-assign scale_row_sel = 0;
-//assign scale3 = 127;
- 
-//------------------------------------------------------------
-// Temporary tie-offs
-//------------------------------------------------------------
-
-always_comb begin
-    scaleA[0] = 8'h7F;
-    scaleA[1] = 8'h80;
-    scaleA[2] = 8'h7E;
-    scaleA[3] = 8'h80;
-
-    scaleB[0] = 8'h7F;
-    scaleB[1] = 8'h7F;
-    scaleB[2] = 8'h7F;
-    scaleB[3] = 8'h80;
-
-    scale_accum_in[0] = 16'h4302;
-    scale_accum_in[1] = 16'h4302;
-    scale_accum_in[2] = 16'h4302;
-    scale_accum_in[3] = 16'h4302;
-end
-//to_RM_end
-
+    always_comb begin
+        scaleA[0] = 8'h7F;  scaleA[1] = 8'h80;  scaleA[2] = 8'h7E;  scaleA[3] = 8'h80; //[stev] - need to collect these
+        scaleB[0] = 8'h7F;  scaleB[1] = 8'h7F;  scaleB[2] = 8'h7F;  scaleB[3] = 8'h80;
+        scale_accum_in[0] = 16'h4302; scale_accum_in[1] = 16'h4302; scale_accum_in[2] = 16'h4302; scale_accum_in[3] = 16'h4302;
+    end
 
 // --- [stev] ---
-//------------------------------------------------------------
-// Debug: Scale Accumulator Outputs
-//------------------------------------------------------------
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
         $display("[%0t] [SCALE] tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
@@ -407,21 +306,6 @@ always_ff @(posedge clk_i) begin
     end
 end
 
-//------------------------------------------------------------
-// Debug: MAC VRF read port
-//------------------------------------------------------------
-//`ifdef VEC_DEBUG
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[MAC_VRF] addr=v%0d elem=%0d data=%08x",
-                 mac_vrf_raddr_o,
-                 mac_vrf_relem_o,
-                 mac_vrf_rdata_i);
-    end
-end
-//`endif
-
-//`ifdef VEC_DEBUG
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
         $display("[%0t] [MAC_VRF] raddr=v%0d relem=%0d rdata=%08x mac_en=%0b busy=%0b done=%0b",
@@ -434,7 +318,6 @@ always_ff @(posedge clk_i) begin
                  done_o);
     end
 end
-//`endif
 
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
@@ -455,10 +338,6 @@ always_ff @(posedge clk_i) begin
     end
 end
 
-
-//------------------------------------------------------------
-// Debug: MAC Move / Scalar Writeback
-//------------------------------------------------------------
 always_ff @(posedge clk_i) begin
     if (rst_ni) begin
         $display("[%0t] [MAC_MV] op=%0d mv_en=%0b mode=%0d row=%0d even_col=%0d odd_col=%0d",
@@ -481,14 +360,40 @@ always_ff @(posedge clk_i) begin
                      $time,
                      mv_row_idx,
                      mv_even_col_idx,
-                     tile_accum[mv_row_idx][mv_even_col_idx],
+                     tile_snapshot[mv_row_idx][mv_even_col_idx],
                      mv_row_idx,
                      mv_odd_col_idx,
-                     tile_accum[mv_row_idx][mv_odd_col_idx]);
+                     tile_snapshot[mv_row_idx][mv_odd_col_idx]);
         end
     end
 end
 
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [CTX] snap=%0b act=%0b wt=%0b ready=%0b accept=%0b busy=%0b done=%0b",
+                 $time,
+                 snapshot_valid_q,
+                 act_scale_valid_q,
+                 weight_scale_valid_q,
+                 context_ready,
+                 context_accept,
+                 scale_busy,
+                 scale_done);
+    end
+end
+
+always_ff @(posedge clk_i) begin
+    if (snapshot_valid) begin
+        $display("[%0t] Snapshot captured", $time);
+
+        for (int r=0; r<TT; r++) begin
+            $write("Row %0d :", r);
+            for (int c=0; c<TT; c++)
+                $write(" %6d", tile_snapshot[r][c]);
+            $write("\n");
+        end
+    end
+end
 // --- [end] ---
 
 endmodule

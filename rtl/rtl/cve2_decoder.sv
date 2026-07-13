@@ -1301,6 +1301,8 @@ cve2_pkg::mac_op_e cf_op;
   localparam logic [6:0] CF_FUNCT7_MV2MAC64  = 7'h06;
   localparam logic [6:0] CF_FUNCT7_LDMAC64  = 7'h07;
   localparam logic [6:0] CF_FUNCT7_ST2MAC64  = 7'h08;
+  localparam logic [6:0] CF_FUNCT7_MACAS   = 7'h0A;
+  localparam logic [6:0] CF_FUNCT7_MACWS   = 7'h0B;
 
 
 //31                20  19:15  14:12  11:7   6:0
@@ -1364,6 +1366,19 @@ if (opcode == CF_OPC_OPV) begin
 		cf_insn = 1'b1;
 
 	end
+        CF_FUNCT7_MACAS : begin 
+		cf_op = cve2_pkg::OP_MAC_AS;
+		cf_insn = 1'b1;
+
+	end
+        CF_FUNCT7_MACWS : begin 
+		cf_op = cve2_pkg::OP_MAC_WS;
+		cf_insn = 1'b1;
+
+	end
+
+
+
 	default: begin
     		cf_type_ok = 1'b0;
 

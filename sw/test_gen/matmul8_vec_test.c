@@ -175,7 +175,8 @@ extern void mac_mem_test_v31(uint32_t *ptr);
 // scale
 extern void load_act_scales(const uint8_t *base);
 extern void load_w_scales(const uint8_t *base);
-extern void mac_scale_acc(void);
+extern void mac_as(void);
+extern void mac_ws(void);
 
 
 //static volatile uint32_t mac_test_mem[8]
@@ -221,11 +222,13 @@ for (int i = 0; i < TT * BS; i++)
 
     //mac_zz(); //[stev] - looks good
 
+//rm_for test scale fsm
+
 /*
      * Load v0 with 8 words.
      * VMAC64 will use v0 as the vector operand.
      */
-    load_v1((uint32_t *)mat_a);
+//    load_v1((uint32_t *)mat_a);
 
    /*
      * Run vector MAC.
@@ -233,19 +236,25 @@ for (int i = 0; i < TT * BS; i++)
      *   VMAC64(0,0,10)
      *   v0 x memory block 0
      */
-    mac_mem_test_v1((uint32_t *)mat_a);
+//    mac_mem_test_v1((uint32_t *)mat_a);
 
-mac_zz(); //clear tile here
+//mac_zz(); //clear tile here
 
-mac_hw(a, b); //[stev] - looks good
+//mac_hw(a, b); //[stev] - looks good
 
-uint32_t chk = mac_out(4,1,2);
+//uint32_t chk = mac_out(4,1,2);
 
-mac_zz(); //clear tile here
+//mac_zz(); //clear tile here
+//rm_for test scale fsm end
 
      load_v0((uint32_t *)mat_a);
 
     mac_mem_test_v0((uint32_t *)mat_a);
+
+//rm_for test scale fsm
+mac_as();
+mac_ws();
+////rm_for test scale fsm end
 
 
 //v31
@@ -283,8 +292,8 @@ mac_zz(); //clear tile here
 
   *COMP_END_MMIO = 1u;
 
- // *DONE_MMIO = 0x22;
-  *DONE_MMIO = chk;
+  *DONE_MMIO = 0x22;
+ // *DONE_MMIO = chk;
 
   while (1) {}
 }

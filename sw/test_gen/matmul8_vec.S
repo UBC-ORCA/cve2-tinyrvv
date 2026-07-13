@@ -1342,18 +1342,55 @@ Bits:
 */
 
 
-#define MAC_SCALE_ACC(t0,t1,t2,t3) \
-.word ((((t3) & 0x1F) << 25) | \
-       (((t1) & 0x1F) << 20) | \
-       (((t0) & 0x1F) << 15) | \
+/*
+31        25 24    20 19    15 14   12 11        7 6      0
++------------+--------+--------+-------+-----------+--------+
+| cf_id[9:3] |  rs2   |  rs1   |cf_id  |  custom   | 1011011
+|            |        |        | [2:0] |           |        |
++------------+--------+--------+-------+-----------+--------+
+
+Bits:
+[31:25] = cf_id[9:3]
+[24:20] = rs2
+[19:15] = rs1
+[14:12] = cf_id[2:0]
+[11:7]  = custom
+[6:0]   = 1011011   (custom-2 opcode)
+
+t0 = x5
+t1 = x6
+t2 = x7
+t3 = x28
+
+*/
+
+#define MAC_AS(rs1, rs2) \
+.word (((0x0A & 0x7F) << 25) | \
+       (((rs2) & 0x1F) << 20) | \
+       (((rs1) & 0x1F) << 15) | \
        (0 << 12) | \
-       (((t2) & 0x1F) << 7) | \
+       (0 << 7) | \
+       CUSTOM2)
+
+#define MAC_WS(rs1, rs2) \
+.word (((0x0B & 0x7F) << 25) | \
+       (((rs2) & 0x1F) << 20) | \
+       (((rs1) & 0x1F) << 15) | \
+       (0 << 12) | \
+       (0 << 7) | \
        CUSTOM2)
 
 
-.globl mac_scale_acc
-mac_scale_acc:
-    MAC_SCALE_ACC(5,6,7,28)
+.globl mac_as
+mac_as:
+    # MAC_AS t0, t1
+    MAC_AS(5,6)
+    ret
+
+.globl mac_ws
+mac_ws:
+    # MAC_WS t2, t3
+    MAC_WS(7,28)
     ret
 
 //[end]
