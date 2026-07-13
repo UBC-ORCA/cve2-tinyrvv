@@ -173,8 +173,19 @@ extern void mac_mem_test_v31(uint32_t *ptr);
 
 
 // scale
-extern void load_act_scales(const uint8_t *base);
-extern void load_w_scales(const uint8_t *base);
+uint32_t act_scales[2] = {
+    0x8281807F,
+    0x86858483
+};
+
+uint32_t weight_scales[2] = {
+    0x7C7D7E7F,
+    0x78797A7B
+};
+
+
+extern void load_act_scales(const uint32_t *base);
+extern void load_w_scales(const uint32_t *base);
 extern void mac_as(void);
 extern void mac_ws(void);
 
@@ -246,6 +257,9 @@ for (int i = 0; i < TT * BS; i++)
 
 //mac_zz(); //clear tile here
 //rm_for test scale fsm end
+
+load_act_scales(act_scales);
+load_w_scales(weight_scales);
 
      load_v0((uint32_t *)mat_a);
 

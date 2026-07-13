@@ -332,6 +332,46 @@ module cve2_cf_mac_unit
         .accumulator_out(scale_accum_out[3])
     );
 
+always_comb begin
+
+    //------------------------------------------
+    // Activation scales
+    //------------------------------------------
+
+    if (!scale_row_sel) begin
+        // rows 0,2,4,6
+        scaleA[0] = ctx_act_scale_lo[ 7: 0];
+        scaleA[1] = ctx_act_scale_lo[23:16];
+        scaleA[2] = ctx_act_scale_hi[ 7: 0];
+        scaleA[3] = ctx_act_scale_hi[23:16];
+    end
+    else begin
+        // rows 1,3,5,7
+        scaleA[0] = ctx_act_scale_lo[15: 8];
+        scaleA[1] = ctx_act_scale_lo[31:24];
+        scaleA[2] = ctx_act_scale_hi[15: 8];
+        scaleA[3] = ctx_act_scale_hi[31:24];
+    end
+
+    //------------------------------------------
+    // Weight scales
+    //------------------------------------------
+
+    if (scale_col < 4) begin
+        scaleB[0] = ctx_weight_scale_lo[ 7: 0];
+        scaleB[1] = ctx_weight_scale_lo[15: 8];
+        scaleB[2] = ctx_weight_scale_lo[23:16];
+        scaleB[3] = ctx_weight_scale_lo[31:24];
+    end
+    else begin
+        scaleB[0] = ctx_weight_scale_hi[ 7: 0];
+        scaleB[1] = ctx_weight_scale_hi[15: 8];
+        scaleB[2] = ctx_weight_scale_hi[23:16];
+        scaleB[3] = ctx_weight_scale_hi[31:24];
+    end
+
+end
+
 //    always_comb begin
   //      scaleA[0] = 8'h7F;  scaleA[1] = 8'h80;  scaleA[2] = 8'h7E;  scaleA[3] = 8'h80; //[stev] - need to collect these
    //     scaleB[0] = 8'h7F;  scaleB[1] = 8'h7F;  scaleB[2] = 8'h7F;  scaleB[3] = 8'h80;
@@ -344,15 +384,15 @@ always_comb begin
     // ------------------------------------------------------------
     // Fake MX scales
     // ------------------------------------------------------------
-    scaleA[0] = 8'h7F;
-    scaleA[1] = 8'h80;
-    scaleA[2] = 8'h81;
-    scaleA[3] = 8'h82;
+   // scaleA[0] = 8'h7F;
+   // scaleA[1] = 8'h80;
+   // scaleA[2] = 8'h81;
+  //  scaleA[3] = 8'h82;
 
-    scaleB[0] = 8'h7F;
-    scaleB[1] = 8'h7E;
-    scaleB[2] = 8'h7D;
-    scaleB[3] = 8'h7C;
+  //  scaleB[0] = 8'h7F;
+  //  scaleB[1] = 8'h7E;
+  //  scaleB[2] = 8'h7D;
+  //  scaleB[3] = 8'h7C;
 
 
     // ------------------------------------------------------------
@@ -390,6 +430,55 @@ always_ff @(posedge clk_i) begin
                  scale_accum_out[1],
                  scale_accum_out[2],
                  scale_accum_out[3]);
+    end
+end
+
+// ------------------------------------------------------------
+// Scale Context Debug Dump
+// ------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        $display("[%0t] [SCALE_CTX] act_lo=%08x act_hi=%08x wt_lo=%08x wt_hi=%08x",
+                 $time,
+                 ctx_act_scale_lo,
+                 ctx_act_scale_hi,
+                 ctx_weight_scale_lo,
+                 ctx_weight_scale_hi);
+
+        $display("[%0t] [SCALE_CTX] ACT scales = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
+                 $time,
+                 ctx_act_scale_lo[7:0],
+                 ctx_act_scale_lo[15:8],
+                 ctx_act_scale_lo[23:16],
+                 ctx_act_scale_lo[31:24],
+                 ctx_act_scale_hi[7:0],
+                 ctx_act_scale_hi[15:8],
+                 ctx_act_scale_hi[23:16],
+                 ctx_act_scale_hi[31:24]);
+
+        $display("[%0t] [SCALE_CTX] WT scales  = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
+                 $time,
+                 ctx_weight_scale_lo[7:0],
+                 ctx_weight_scale_lo[15:8],
+                 ctx_weight_scale_lo[23:16],
+                 ctx_weight_scale_lo[31:24],
+                 ctx_weight_scale_hi[7:0],
+                 ctx_weight_scale_hi[15:8],
+                 ctx_weight_scale_hi[23:16],
+                 ctx_weight_scale_hi[31:24]);
+
+        $display("[%0t] [SCALE_SEL] row_sel=%0b col=%0d | scaleA={%02x,%02x,%02x,%02x} scaleB={%02x,%02x,%02x,%02x}",
+                 $time,
+                 scale_row_sel,
+                 scale_col,
+                 scaleA[0],
+                 scaleA[1],
+                 scaleA[2],
+                 scaleA[3],
+                 scaleB[0],
+                 scaleB[1],
+                 scaleB[2],
+                 scaleB[3]);
     end
 end
 
