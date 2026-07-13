@@ -90,8 +90,9 @@ build-sim: gen-vc
 		-Wno-fatal \
 		--cc --exe --build \
 		--top-module $(TOP_MODULE) \
+		--coverage \
 		-LDFLAGS "-lelf" \
-		$(TB_CPP)
+		$(TB_CPP) 
 	@echo "[gen-vc] Compiled to Verilator [3/5]"
 
 ###############################################################################

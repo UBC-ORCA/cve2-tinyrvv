@@ -69,8 +69,6 @@ targets:
   lint_scale_e4m3_no_fuse:
     <<: *default_target
     <<: *lint_shared
-    parameters:
-      - SYNTHESIS=true
     filesets_append:
       - files_nve4m3_scaling_no_fuse
     toplevel: e4m3_scale 
@@ -88,8 +86,6 @@ targets:
   lint_scale_e4m3_no_fuse_mul_only:
     <<: *default_target
     <<: *lint_shared
-    parameters:
-      - SYNTHESIS=true
     filesets_append:
       - files_nve4m3_scaling_no_fuse
     toplevel: e4m3_mul 
@@ -107,8 +103,6 @@ targets:
   lint_scale_e8m0_no_fuse:
     <<: *default_target
     <<: *lint_shared
-    parameters:
-      - SYNTHESIS=true
     filesets_append:
       - files_e8m0_scaling_no_fuse
 
