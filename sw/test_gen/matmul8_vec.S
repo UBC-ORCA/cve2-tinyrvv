@@ -1313,14 +1313,14 @@ mac_mem_test_v31:
 
 .globl load_act_scales
 load_act_scales:
-    lw  t0, 0(a0)
-    lw  t1, 4(a0)
+    lw  s0, 0(a0)
+    lw  s1, 4(a0)
     ret
 
 .globl load_w_scales
 load_w_scales:
-    lw  t2, 0(a0)
-    lw  t3, 4(a0)
+    lw  s2, 0(a0)
+    lw  s3, 4(a0)
     ret
 
 
@@ -1357,10 +1357,10 @@ Bits:
 [11:7]  = custom
 [6:0]   = 1011011   (custom-2 opcode)
 
-t0 = x5
-t1 = x6
-t2 = x7
-t3 = x28
+s0 = x8
+s1 = x9
+s2 = x18
+s3 = x19
 
 */
 
@@ -1383,14 +1383,14 @@ t3 = x28
 
 .globl mac_as
 mac_as:
-    # MAC_AS t0, t1
-    MAC_AS(5,6)
+    # MAC_AS s0, s1
+    MAC_AS(8,9)
     ret
 
 .globl mac_ws
 mac_ws:
-    # MAC_WS t2, t3
-    MAC_WS(7,28)
+    # MAC_WS s2, s3
+    MAC_WS(18,19)
     ret
 
 //[end]
