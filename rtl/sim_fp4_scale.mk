@@ -16,10 +16,19 @@ SHELL := /bin/bash
 
 CVE2_CONFIG ?= small
 
-TB_CPP := ../../../../sw/tb/scale_tb/nvfp8_mul_tb.cpp
 
-TOP_MODULE := e4m3_mul
-TARGET_NAME := lint_scale_e4m3_no_fuse_mul_only
+# == adder
+TOP_MODULE := parameterized_adder
+TARGET_NAME := lint_scale_bf16_adder
+TB_CPP := ../../../../sw/tb/scale_tb/bf16_add_tb.cpp
+
+
+# == multiplier
+# TOP_MODULE := e4m3_mul
+# TARGET_NAME := lint_scale_e4m3_no_fuse_mul_only
+# TB_CPP := ../../../../sw/tb/scale_tb/nvfp8_mul_tb.cpp
+
+
 
 CORE_FILE := cve2_fp4_scale.core
 CORE_NAME := orca:cve2:fp4_scale:0.1
