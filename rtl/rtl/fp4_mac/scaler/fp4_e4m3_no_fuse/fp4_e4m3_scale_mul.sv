@@ -71,6 +71,29 @@ import fp4_pkg::*; (
 );
 
     localparam logic [14:0] BF16_NAN = 15'h7fc0;
+    localparam int E4M3_M = 3;
+    localparam int E4M3_E = 4;
+    localparam int Q14_2_FRAC = 2;
+    localparam int Q14_2_WIDTH = 16;
+
+    localparam int BF16_E = 8;
+    localparam int BF16_M = 7;
+
+    /* 2*(1+M3) + 16 int bits.
+        This is because the encoding for |INT16.MIN_VAL|
+            does have a representation in 16 bits
+     */
+    localparam logic [7:0] PABC_FIXED_PRODUCT_WIDTH = 
+                                2 * (1 + E4M3_M) + Q14_2_WIDTH;                       
+    
+    /* Decimal places for the product A * B * C
+        2 * 3 (3 from E4M3), then 2 from Q14.2
+     */
+    localparam logic [7:0] PABC_DECIMAL_PLACES = 2*E4M3_M + Q14_2_FRAC;;
+
+    /* MSB and LSB locations for the {1,A} * {1,B} * C mantissa product */
+    localparam SHIFTED_M_MSB = PABC_FIXED_PRODUCT_WIDTH-2;
+    localparam SHIFTED_M_LSB = PABC_FIXED_PRODUCT_WIDTH-BF16_M-1;
 
     // Declare the variables
     logic A_is_zero;
@@ -89,7 +112,7 @@ import fp4_pkg::*; (
     logic C_sign;
 
     /* 1 extra bit to account for the sign */
-    logic signed [16:0] C_absval;
+    logic signed [Q14_2_WIDTH:0] C_absval;
 
     logic S_PAB;
 
@@ -114,12 +137,12 @@ import fp4_pkg::*; (
     );
 
     // temp variables for multiplication
-    logic [22:0] TEMP_M_PABC;
+    logic [PABC_FIXED_PRODUCT_WIDTH-1:0] TEMP_M_PABC;
     logic [14:0] TEMP_PABC;
 
     /* Point Adjustment Signals */
     logic [7:0] lzc; // leading zeros count
-    logic [22:0] shifted_m_pabc;
+    logic [PABC_FIXED_PRODUCT_WIDTH-1:0] shifted_m_pabc;
     logic [6:0] pre_round_mant;
     logic signed [7:0] exp_shift_amount;
 
@@ -130,14 +153,14 @@ import fp4_pkg::*; (
 
     /* Final Values */
     logic [6:0] actual_m_pabc;
-    logic [7:0] actual_exp_pabc;        
+    logic [BF16_E-1:0] actual_exp_pabc;        
 
     assign C_is_zero = q14_2_C_in == 'b0;
-    assign C_sign = q14_2_C_in[15];
+    assign C_sign = q14_2_C_in[Q14_2_WIDTH-1];
     assign C_absval = C_sign ? -q14_2_C_in : q14_2_C_in;
 
     /* Integer multiplication */
-    assign TEMP_M_PABC = C_absval[14:0] * {1'b1, A_mant_norm} * {1'b1, B_mant_norm}; 
+    assign TEMP_M_PABC = C_absval[Q14_2_WIDTH-1:0] * {1'b1, A_mant_norm} * {1'b1, B_mant_norm}; 
 
     assign S_PAB = A8.sign ^ B8.sign ^ C_sign;
 
@@ -147,41 +170,52 @@ import fp4_pkg::*; (
      */
     always_comb begin
         casez (TEMP_M_PABC)
-            23'b1??????????????????????: lzc = 5'd0;
-            23'b01?????????????????????: lzc = 5'd1;
-            23'b001????????????????????: lzc = 5'd2;
-            23'b0001???????????????????: lzc = 5'd3;
-            23'b00001??????????????????: lzc = 5'd4;
-            23'b000001?????????????????: lzc = 5'd5;
-            23'b0000001????????????????: lzc = 5'd6;
-            23'b00000001???????????????: lzc = 5'd7;
-            23'b000000001??????????????: lzc = 5'd8;
-            23'b0000000001?????????????: lzc = 5'd9;
-            23'b00000000001????????????: lzc = 5'd10;
-            23'b000000000001???????????: lzc = 5'd11;
-            23'b0000000000001??????????: lzc = 5'd12;
-            23'b00000000000001?????????: lzc = 5'd13;
-            23'b000000000000001????????: lzc = 5'd14;
-            23'b0000000000000001???????: lzc = 5'd15;
-            23'b00000000000000001??????: lzc = 5'd16;
-            23'b000000000000000001?????: lzc = 5'd17;
-            23'b0000000000000000001????: lzc = 5'd18;
-            23'b00000000000000000001???: lzc = 5'd19;
-            23'b000000000000000000001??: lzc = 5'd20;
-            23'b0000000000000000000001?: lzc = 5'd21;
-            23'b00000000000000000000001: lzc = 5'd22;
-            23'b00000000000000000000000: lzc = 5'd23;
+            24'b1???????????????????????: lzc = 5'd0;
+            24'b01??????????????????????: lzc = 5'd1;
+            24'b001?????????????????????: lzc = 5'd2;
+            24'b0001????????????????????: lzc = 5'd3;
+            24'b00001???????????????????: lzc = 5'd4;
+            24'b000001??????????????????: lzc = 5'd5;
+            24'b0000001?????????????????: lzc = 5'd6;
+            24'b00000001????????????????: lzc = 5'd7;
+            24'b000000001???????????????: lzc = 5'd8;
+            24'b0000000001??????????????: lzc = 5'd9;
+            24'b00000000001?????????????: lzc = 5'd10;
+            24'b000000000001????????????: lzc = 5'd11;
+            24'b0000000000001???????????: lzc = 5'd12;
+            24'b00000000000001??????????: lzc = 5'd13;
+            24'b000000000000001?????????: lzc = 5'd14;
+            24'b0000000000000001????????: lzc = 5'd15;
+            24'b00000000000000001???????: lzc = 5'd16;
+            24'b000000000000000001??????: lzc = 5'd17;
+            24'b0000000000000000001?????: lzc = 5'd18;
+            24'b00000000000000000001????: lzc = 5'd19;
+            24'b000000000000000000001???: lzc = 5'd20;
+            24'b0000000000000000000001??: lzc = 5'd21;
+            24'b00000000000000000000001?: lzc = 5'd22;
+            24'b000000000000000000000001: lzc = 5'd23;
+            24'b000000000000000000000000: lzc = 5'd24;
             default:                     lzc = 5'd0; 
         endcase
 
         shifted_m_pabc = TEMP_M_PABC << lzc;
-        exp_shift_amount = 8'sd23 
-                                - (8'd8) // original point (3 + 3 + 2)
-                                - (lzc + 1);
-        pre_round_mant = shifted_m_pabc[21:15];
-        g = shifted_m_pabc[14];
-        r = shifted_m_pabc[13];
-        s = |shifted_m_pabc[12:0];
+
+        /* Compute the delta between the location of the point 
+            before shift adjustment and the desired position 
+            relative from MSB.
+         */
+        exp_shift_amount = PABC_FIXED_PRODUCT_WIDTH 
+                            - (PABC_DECIMAL_PLACES) // original point (3 + 3 + 2)
+                            - (lzc + 1);
+
+        /* 
+            ============ ROUNDING LOGIC =============
+        */
+
+        pre_round_mant = shifted_m_pabc[SHIFTED_M_MSB : SHIFTED_M_LSB];
+        g = shifted_m_pabc[SHIFTED_M_LSB-1];
+        r = shifted_m_pabc[SHIFTED_M_LSB-2];
+        s = |shifted_m_pabc[SHIFTED_M_LSB-3:0];
 
         round_up = g & (r | s | pre_round_mant[0]);
 
@@ -236,11 +270,4 @@ import fp4_pkg::*; (
         // end
     // `endif
 
-    // always_comb begin
-    //     $display("MA_appended = %b, MB_appended = %b", MA_appended, MB_appended);
-    //     $display("normalized_EA = %b, normalized_EB = %b", normalized_EA, normalized_EB);
-    //     $display("S_PAB = %b, TEMP_E_PAB = %b, TEMP_M_PAB = %b", S_PAB, TEMP_E_PAB, TEMP_M_PAB);
-    //     $display("TEMP_PAB = %b", TEMP_PAB);
-    // end
-    
 endmodule

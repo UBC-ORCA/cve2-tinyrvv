@@ -730,24 +730,24 @@ void random_normal_test(Ve4m3_mul &dut, Scoreboard &sb, RandGen &rg, uint32_t n)
     }
 }
 
-void constrained_random_test(Ve4m3_mul &dut, Scoreboard &sb, uint32_t iterations = (1 << 31)) {
+void constrained_random_test(Ve4m3_mul &dut, Scoreboard &sb, uint32_t iterations = 4098) {
     std::cout << "CONSTRAINED RANDOM TESTING (no NaNs)" << std::endl;
     RandGen rg;
 
-    // std::cout << "  [SUBNORMAL_1] " << iterations << " iteration(s)" << std::endl;
-    // random_subnormal_1_test(dut, sb, rg, iterations);
+    std::cout << "  [SUBNORMAL_1] " << iterations << " iteration(s)" << std::endl;
+    random_subnormal_1_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [SUBNORMAL_2] " << iterations << " iteration(s)" << std::endl;
-    // random_subnormal_2_test(dut, sb, rg, iterations);
+    std::cout << "  [SUBNORMAL_2] " << iterations << " iteration(s)" << std::endl;
+    random_subnormal_2_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
-    // random_boundary_1_test(dut, sb, rg, iterations);
+    std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
+    random_boundary_1_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
-    // random_boundary_2_test(dut, sb, rg, iterations);
+    std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
+    random_boundary_2_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [BOUNDARY_3] " << iterations << " iteration(s)" << std::endl;
-    // random_boundary_3_test(dut, sb, rg, iterations);
+    std::cout << "  [BOUNDARY_3] " << iterations << " iteration(s)" << std::endl;
+    random_boundary_3_test(dut, sb, rg, iterations);
 
     std::cout << "  [NORMAL] " << iterations << " iteration(s)" << std::endl;
     random_normal_test(dut, sb, rg, iterations);
@@ -814,7 +814,7 @@ int main(int argc, char** argv) {
     sb.start();
 
     // constrained_test(dut, sb);
-    constrained_random_test(dut, sb);
+    // constrained_random_test(dut, sb);
 
     // eval_dut(
     //         dut,
@@ -824,32 +824,32 @@ int main(int argc, char** argv) {
     //         static_cast<int16_t>(0x8000));
 
 
-    // for (int32_t tile = INT16_MIN + static_cast<int32_t>(tile_offset);
-    //               tile <= INT16_MAX;
-    //              tile += static_cast<int32_t>(tile_stride)) {
+    for (int32_t tile = INT16_MIN + static_cast<int32_t>(tile_offset);
+                  tile <= INT16_MAX;
+                 tile += static_cast<int32_t>(tile_stride)) {
 
-    //     for (uint32_t a = a_offset; a < 256; a += a_stride) {
-    //         for (uint32_t w = w_offset; w < 256; w += w_stride) {
+        for (uint32_t a = a_offset; a < 256; a += a_stride) {
+            for (uint32_t w = w_offset; w < 256; w += w_stride) {
             
            
-    //             eval_dut(
-    //                 dut,
-    //                 sb,
-    //                 static_cast<uint8_t>(a),
-    //                 static_cast<uint8_t>(w),
-    //                 static_cast<int16_t>(tile));
+                eval_dut(
+                    dut,
+                    sb,
+                    static_cast<uint8_t>(a),
+                    static_cast<uint8_t>(w),
+                    static_cast<int16_t>(tile));
 
-    //             ++completed;
+                ++completed;
 
-    //             // Update every million tests to reduce overhead
-    //             if ((completed % 1000000) == 0) {
-    //                 progress(
-    //                     static_cast<float>(completed) /
-    //                     static_cast<float>(total_tests));
-    //             }
-    //         }
-    //     }
-    // }
+                // Update every million tests to reduce overhead
+                if ((completed % 1000000) == 0) {
+                    progress(
+                        static_cast<float>(completed) /
+                        static_cast<float>(total_tests));
+                }
+            }
+        }
+    }
 
     progress(1.0);
     sb.end();
