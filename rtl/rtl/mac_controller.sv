@@ -1,6 +1,6 @@
 module mac_controller #(
     parameter int VL = 32, // Updated default to 32 to support the 32 flattened MAC iterations
-parameter int TT = 8
+    parameter int TT = 8
 ) (
     input  logic                 clk_i,
     input  logic                 rst_ni,
@@ -107,6 +107,9 @@ parameter int TT = 8
     assign elem_idx     = count_q[2:0]; // Decodes element index within register (0..7)
     assign mac_vrf_addr = vs1_q + reg_group;
 
+    // Patched: Register to delay the snapshot by 1 clock cycle 
+    logic        vmac_last_q;
+
     typedef enum logic [1:0] { IDLE, EXEC, DONE } state_e;
     state_e state_q, state_d;
 
@@ -151,6 +154,7 @@ parameter int TT = 8
             snapshot_valid_q   <= 1'b0;
             act_scale_pulse    <= 1'b0;
             weight_scale_pulse <= 1'b0;
+            vmac_last_q        <= 1'b0;
         end else begin
             state_q            <= state_d;
             count_q            <= count_d;
@@ -182,7 +186,11 @@ parameter int TT = 8
                 endcase
             end
 
-            if (op_q == cve2_pkg::OP_VMAC && data_rvalid_i && (count_q == (VL-1))) begin
+            // Capture the last VMAC return flag
+            vmac_last_q <= (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i && (count_q == (VL-1));
+
+            // Assert snapshot valid delayed by 1 clock cycle
+            if (vmac_last_q) begin
                 snapshot_valid_q <= 1'b1;
             end
         end
@@ -211,9 +219,7 @@ parameter int TT = 8
                     state_d = DONE;
                 end 
                 else if (op_q == cve2_pkg::OP_MAC_WS) begin
-                    if (scale_done_i) begin
-                        state_d = DONE;
-                    end
+                    state_d = DONE;
                 end 
                 else if (op_q == cve2_pkg::OP_VMAC) begin
                     if (!mem_req_sent_q) begin
@@ -255,6 +261,7 @@ parameter int TT = 8
         mac_en_o = ((state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i) || 
                    ((state_q == EXEC) && (op_q == cve2_pkg::OP_MAC));
         clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
+//        clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ) || snapshot_valid_q;
 
         mac_vrf_raddr_o = '0;
         mac_vrf_relem_o = '0;
@@ -298,9 +305,6 @@ parameter int TT = 8
                     default: ;
                 endcase
 
-                //------------------------------------------------------------
-                // Patched: Updated assignments for OP_VMAC layout matching
-                //------------------------------------------------------------
                 if (op_q == cve2_pkg::OP_VMAC) begin
                     mac_vrf_raddr_o = mac_vrf_addr;
                     mac_vrf_relem_o = elem_idx;
@@ -317,50 +321,38 @@ parameter int TT = 8
         endcase
     end
 
-  //  genvar k;
-  //  generate
-    //    for (k = 0; k < VL; k++) begin : GEN_UNPACK_NIBBLES
-    //        assign act_vector_o[k]    = act_packed[4*k +:4];
-    //        assign weight_vector_o[k] = weight_packed[4*k +:4];
-    //    end
-   // endgenerate
+    genvar k;
+    generate
+        for (k = 0; k < TT; k++) begin : GEN_UNPACK_NIBBLES
+            assign act_vector_o[k] =
+                act_packed[4*k +: 4];
 
-genvar k;
-generate
-    for (k = 0; k < TT; k++) begin : GEN_UNPACK_NIBBLES
-        assign act_vector_o[k] =
-            act_packed[4*k +: 4];
+            assign weight_vector_o[k] =
+                weight_packed[4*k +: 4];
+        end
+    endgenerate
 
-        assign weight_vector_o[k] =
-            weight_packed[4*k +: 4];
+    // print
+    always_ff @(posedge clk_i) begin
+        if (rst_ni &&
+            (op_q == cve2_pkg::OP_VMAC) &&
+            data_rvalid_i) begin
+
+            $display(
+                "[%0t] [VMAC] vreg=v%0d elem=%0d flat=%0d vrf=%08x mem_addr=%08x weight=%08x mem_req=%0b mem_gnt=%0b mem_rvalid=%0b mac_en=%0b",
+                $time,
+                mac_vrf_addr,
+                elem_idx,
+                count_q,
+                mac_vrf_rdata_i,
+                base_q + (count_q << 2),
+                data_rdata_i,
+                mem_req_sent_q,
+                data_gnt_i,
+                data_rvalid_i,
+                mac_en_o
+            );
+        end
     end
-endgenerate
-
-//print
-//`ifdef MAC_DEBUG
-always_ff @(posedge clk_i) begin
-    if (rst_ni &&
-        (op_q == cve2_pkg::OP_VMAC) &&
-        data_rvalid_i) begin
-
-$display(
-    "[%0t] [VMAC] vreg=v%0d elem=%0d flat=%0d vrf=%08x mem_addr=%08x weight=%08x mem_req=%0b mem_gnt=%0b mem_rvalid=%0b mac_en=%0b",
-    $time,
-    mac_vrf_addr,
-    elem_idx,
-    count_q,
-    mac_vrf_rdata_i,
-    base_q + (count_q << 2),
-    data_rdata_i,
-    mem_req_sent_q,
-    data_gnt_i,
-    data_rvalid_i,
-    mac_en_o
-);
-    end
-end
-//`endif
-
-// end
 
 endmodule

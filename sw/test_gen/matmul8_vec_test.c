@@ -12,6 +12,7 @@ extern void matmul8_vec(const volatile uint32_t *a,
 //#define BS 8
 #define BS 32
 #define NVREG 32
+#define NVREGG 2 //Number of vector reg groups
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
@@ -20,7 +21,7 @@ static volatile uint32_t *const COMP_END_MMIO   = (volatile uint32_t *)0xFFFF000
 
 //static volatile uint32_t mat_a[TT * BS * NVREG]
 //    __attribute__((section(".mat_a"), used));
-static volatile uint32_t mat_a[TT * BS]
+static volatile uint32_t mat_a[TT * BS * NVREGG]
     __attribute__((section(".mat_a"), used));
 
 static volatile uint32_t mat_b[MAT_N * MAT_N]
@@ -219,7 +220,7 @@ uint32_t data;
 // 	mat_a[i] = vec[i % 8];
 //}
 
-for (int i = 0; i < TT * BS; i++)
+for (int i = 0; i < TT * BS * NVREGG; i++)
 {
     mat_a[i] = 0x11111111 * ((i + 1)%8);
  //	mat_a[i] = vec[i % 8];
@@ -270,7 +271,10 @@ load_v0(&mat_a[0]);
 load_v1(&mat_a[8]);
 load_v2(&mat_a[16]);
 load_v3(&mat_a[24]);
-
+load_v4(&mat_a[32]);
+load_v5(&mat_a[40]);
+load_v6(&mat_a[48]);
+load_v7(&mat_a[56]);
 
     mac_mem_test_v0((uint32_t *)mat_a);
 
@@ -281,7 +285,9 @@ mac_as();
 mac_ws();
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end
-
+    mac_mem_test_v4((uint32_t *)mat_a);
+mac_as();
+mac_ws();
 
 //v31
 //mac_zz(); //clear tile here

@@ -128,7 +128,7 @@ module cve2_cf_mac_unit
             end
         end else begin
             // 1. Capture incoming real-time pulses from sequencing controller
-            if (snapshot_valid) begin
+            if (snapshot_valid && !scale_busy) begin
                 snapshot_valid_q  <= 1'b1;
                 ctx_tile_snapshot <= tile_snapshot;
             end
