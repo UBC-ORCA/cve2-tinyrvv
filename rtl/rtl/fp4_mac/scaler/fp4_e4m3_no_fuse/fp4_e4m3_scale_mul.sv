@@ -5,59 +5,59 @@
     Note that NVFP8 (E4M3) *does not* encode
     infinities.
 */
-module normalize_e4m3
-import fp4_pkg::*;
-#( parameter int OUTPUT_EXP_BITS = 8)
- (
-    input fp4_scaler_e4m3_t e4m3,
-    output logic [2:0] normalized_mant,
+// module normalize_e4m3
+// import fp4_pkg::*;
+// #( parameter int OUTPUT_EXP_BITS = 8)
+//  (
+//     input fp4_scaler_e4m3_t e4m3,
+//     output logic [2:0] normalized_mant,
     
-    /* Encodes *the actual* value (unbiased)*/
-    output logic signed [OUTPUT_EXP_BITS-1:0] normalized_exp, 
-    output logic is_zero,
-    output logic is_subnormal,
-    output logic is_nan
-);
+//     /* Encodes *the actual* value (unbiased)*/
+//     output logic signed [OUTPUT_EXP_BITS-1:0] normalized_exp, 
+//     output logic is_zero,
+//     output logic is_subnormal,
+//     output logic is_nan
+// );
 
-    localparam logic [OUTPUT_EXP_BITS-1:0] E4M3_BIAS = 'd7;
-    localparam logic [OUTPUT_EXP_BITS-1:0] OUT_BIAS = (1 << (OUTPUT_EXP_BITS - 1)) - 1;
-    logic [3:0] sub_shift_l;
-    // logic is_subnormal;
+//     localparam logic [OUTPUT_EXP_BITS-1:0] E4M3_BIAS = 'd7;
+//     localparam logic [OUTPUT_EXP_BITS-1:0] OUT_BIAS = (1 << (OUTPUT_EXP_BITS - 1)) - 1;
+//     logic [3:0] sub_shift_l;
+//     // logic is_subnormal;
 
-    assign is_zero = e4m3[6:0] == 'b0;
-    assign is_subnormal = (e4m3.exp == 'b0) && (!is_zero);
-    assign is_nan = &e4m3[6:0];
-    always_comb begin
-        sub_shift_l = 4'd0;
+//     assign is_zero = e4m3[6:0] == 'b0;
+//     assign is_subnormal = (e4m3.exp == 'b0) && (!is_zero);
+//     assign is_nan = &e4m3[6:0];
+//     always_comb begin
+//         sub_shift_l = 4'd0;
 
-        if (is_subnormal) begin
-            /* Shift back mantissa to correct place */
-            unique casez (e4m3.mant)
-                3'b1??: sub_shift_l = 4'd1; 
-                3'b01?: sub_shift_l = 4'd2;
-                3'b001: sub_shift_l = 4'd3;
-                default: begin // 3'b000
-                    assert (is_zero)
-                    else $error("Mantissa is zero but reached this statement"); 
-                    sub_shift_l = 4'd0;
-                end
-            endcase
+//         if (is_subnormal) begin
+//             /* Shift back mantissa to correct place */
+//             unique casez (e4m3.mant)
+//                 3'b1??: sub_shift_l = 4'd1; 
+//                 3'b01?: sub_shift_l = 4'd2;
+//                 3'b001: sub_shift_l = 4'd3;
+//                 default: begin // 3'b000
+//                     assert (is_zero)
+//                     else $error("Mantissa is zero but reached this statement"); 
+//                     sub_shift_l = 4'd0;
+//                 end
+//             endcase
+ 
+//             normalized_mant = e4m3.mant << sub_shift_l;
+//             normalized_exp = 1'b1 - E4M3_BIAS - sub_shift_l;
+//         end else begin 
+//             normalized_mant = e4m3.mant;
+//             normalized_exp = e4m3.exp - E4M3_BIAS; 
+//         end
+//     end
 
-            normalized_mant = e4m3.mant << sub_shift_l;
-            normalized_exp = 1'b1 - E4M3_BIAS - sub_shift_l;
-        end else begin 
-            normalized_mant = e4m3.mant;
-            normalized_exp = e4m3.exp - E4M3_BIAS; 
-        end
-    end
-
-    always_comb begin
-        if (is_subnormal) begin
+//     always_comb begin
+//         if (is_subnormal) begin
             
-        end
-    end
+//         end
+//     end
 
-endmodule
+// endmodule
 
 
 module e4m3_mul
@@ -70,6 +70,7 @@ import fp4_pkg::*; (
     output logic isZero
 );
 
+    
     localparam logic [14:0] BF16_NAN = 15'h7fc0;
     localparam int E4M3_M = 3;
     localparam int E4M3_E = 4;
@@ -78,6 +79,9 @@ import fp4_pkg::*; (
 
     localparam int BF16_E = 8;
     localparam int BF16_M = 7;
+
+    localparam logic [BF16_E-1:0] E4M3_BIAS = (1 << (E4M3_E-1))-1;
+
 
     /* 2*(1+M3) + 16 int bits.
         This is because the encoding for |INT16.MIN_VAL|
@@ -95,46 +99,75 @@ import fp4_pkg::*; (
     localparam SHIFTED_M_MSB = PABC_FIXED_PRODUCT_WIDTH-2;
     localparam SHIFTED_M_LSB = PABC_FIXED_PRODUCT_WIDTH-BF16_M-1;
 
+    function automatic e4m3_is_zero(fp4_scaler_e4m3_t x);
+        e4m3_is_zero = x[6:0] == 'b0;
+    endfunction
+
+    function automatic e4m3_is_nan(fp4_scaler_e4m3_t x);
+        e4m3_is_nan = &x[6:0];
+    endfunction
+
+    function automatic e4m3_is_subnormal(fp4_scaler_e4m3_t x); 
+        e4m3_is_subnormal = (x.exp == 'b0) && (!e4m3_is_zero(x));
+    endfunction
+
+
     // Declare the variables
     logic A_is_zero;
     logic A_is_nan;
     logic A_is_subnormal;
-    logic [2:0] A_mant_norm;
+    logic [3:0] A_mant_ext;
+    // logic [2:0] A_mant_norm;
     logic signed [7:0] A_exp_norm;
+
+    assign A_is_zero = e4m3_is_zero(A8);
+    assign A_is_nan = e4m3_is_nan(A8);
+    assign A_is_subnormal = e4m3_is_subnormal(A8);
+    assign A_mant_ext = {~A_is_subnormal, A8.mant}; 
+    assign A_exp_norm = A8.exp - E4M3_BIAS + A_is_subnormal;
 
     logic B_is_zero;
     logic B_is_nan;
     logic B_is_subnormal;
-    logic [2:0] B_mant_norm;
+    logic [3:0] B_mant_ext;
+    // logic [2:0] B_mant_norm;
     logic signed [7:0] B_exp_norm;
+
+    assign B_is_zero = e4m3_is_zero(B8);
+    assign B_is_nan = e4m3_is_nan(B8);
+    assign B_is_subnormal = e4m3_is_subnormal(B8);
+    assign B_mant_ext = {~B_is_subnormal, B8.mant};
+    assign B_exp_norm = B8.exp - E4M3_BIAS + B_is_subnormal;
 
     logic C_is_zero;
     logic C_sign;
 
     /* 1 extra bit to account for the sign */
     logic signed [Q14_2_WIDTH:0] C_absval;
-
     logic S_PAB;
 
-    normalize_e4m3
-    #(.OUTPUT_EXP_BITS(8)) normA8 (
-        .e4m3(A8), 
-        .normalized_mant(A_mant_norm), 
-        .normalized_exp(A_exp_norm), 
-        .is_zero(A_is_zero), 
-        .is_nan(A_is_nan), 
-        .is_subnormal(A_is_subnormal)
-    );
+    
 
-    normalize_e4m3
-    #(.OUTPUT_EXP_BITS(8)) normB8 (
-        .e4m3(B8), 
-        .normalized_mant(B_mant_norm), 
-        .normalized_exp(B_exp_norm), 
-        .is_zero(B_is_zero), 
-        .is_nan(B_is_nan), 
-        .is_subnormal(B_is_subnormal)
-    );
+
+    // normalize_e4m3
+    // #(.OUTPUT_EXP_BITS(8)) normA8 (
+    //     .e4m3(A8), 
+    //     .normalized_mant(A_mant_norm), 
+    //     .normalized_exp(A_exp_norm), 
+    //     .is_zero(A_is_zero), 
+    //     .is_nan(A_is_nan), 
+    //     .is_subnormal(A_is_subnormal)
+    // );
+
+    // normalize_e4m3
+    // #(.OUTPUT_EXP_BITS(8)) normB8 (
+    //     .e4m3(B8), 
+    //     .normalized_mant(B_mant_norm), 
+    //     .normalized_exp(B_exp_norm), 
+    //     .is_zero(B_is_zero), 
+    //     .is_nan(B_is_nan), 
+    //     .is_subnormal(B_is_subnormal)
+    // );
 
     // temp variables for multiplication
     logic [PABC_FIXED_PRODUCT_WIDTH-1:0] TEMP_M_PABC;
@@ -160,7 +193,7 @@ import fp4_pkg::*; (
     assign C_absval = C_sign ? -q14_2_C_in : q14_2_C_in;
 
     /* Integer multiplication */
-    assign TEMP_M_PABC = C_absval[Q14_2_WIDTH-1:0] * {1'b1, A_mant_norm} * {1'b1, B_mant_norm}; 
+    assign TEMP_M_PABC = C_absval[Q14_2_WIDTH-1:0] * A_mant_ext * B_mant_ext; 
 
     assign S_PAB = A8.sign ^ B8.sign ^ C_sign;
 

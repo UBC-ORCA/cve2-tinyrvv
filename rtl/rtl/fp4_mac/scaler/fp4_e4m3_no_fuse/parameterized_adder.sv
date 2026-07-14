@@ -35,7 +35,9 @@ import fp4_pkg::*;
     logic [EXT_MANT_WIDTH-1:0] min_mant_shifted;
 
     logic eff_sub;
-    logic [EXT_MANT_WIDTH:0] sum_mant_ext; 
+    logic eff_sub_sign;
+    logic [EXT_MANT_WIDTH:0] sum_mant_ext;
+    logic signed [EXT_MANT_WIDTH:0] abs_sum_mant_ext; 
     logic [7:0]  final_exp;
     logic [EXT_MANT_WIDTH:0] norm_mant;
     logic [3:0]  lzc; 
@@ -54,7 +56,7 @@ import fp4_pkg::*;
         round_up = 'b0;
         op_res = 'b0;
         lzc = 'b0;
-
+        eff_sub_sign = 'b0;
 
         // ---------------------------------------------------------------------
         // 1. OPERAND SORTING & EXPONENT ALIGNMENT
@@ -71,7 +73,7 @@ import fp4_pkg::*;
         end
 
         // Extract mantissas and append hidden bits (handle zero operands)
-        max_mant = (max_op.exp == '0) ? '0 : {1'b1, max_op.mant, 3'b000};
+        max_mant = (max_op.exp == '0) ? '0 : {1'b1 , max_op.mant, 3'b000};
         min_mant = (min_op.exp == '0) ? '0 : {1'b1, min_op.mant, 3'b000};
 
         // Align smaller operand's mantissa with dynamic sticky-bit retention
@@ -100,6 +102,8 @@ import fp4_pkg::*;
         // ---------------------------------------------------------------------
         final_exp = max_op.exp;
         norm_mant = sum_mant_ext;
+        abs_sum_mant_ext = sum_mant_ext[EXT_MANT_WIDTH] ? -sum_mant_ext : sum_mant_ext;
+        eff_sub_sign = sum_mant_ext[EXT_MANT_WIDTH] & eff_sub == 1'b1;
 
         if (sum_mant_ext == '0) begin
             op_res = '0; 
@@ -110,25 +114,26 @@ import fp4_pkg::*;
             norm_mant[0] = norm_mant[0] | sum_mant_ext[0]; 
             final_exp = final_exp + 1'b1;
         end 
-        else if (eff_sub == 1'b1 && !sum_mant_ext[EXT_MANT_WIDTH-1]) begin
+        else if (eff_sub == 1'b1 && !abs_sum_mant_ext[EXT_MANT_WIDTH-1]) begin
+
             // Cancellation during subtraction: shift left by LZC
-            if      (sum_mant_ext[10]) lzc = 4'd0;
-            else if (sum_mant_ext[9])  lzc = 4'd1;
-            else if (sum_mant_ext[8])  lzc = 4'd2;
-            else if (sum_mant_ext[7])  lzc = 4'd3;
-            else if (sum_mant_ext[6])  lzc = 4'd4;
-            else if (sum_mant_ext[5])  lzc = 4'd5;
-            else if (sum_mant_ext[4])  lzc = 4'd6;
-            else if (sum_mant_ext[3])  lzc = 4'd7;
-            else if (sum_mant_ext[2])  lzc = 4'd8;
-            else if (sum_mant_ext[1])  lzc = 4'd9;
+            if      (abs_sum_mant_ext[10]) lzc = 4'd0;
+            else if (abs_sum_mant_ext[9])  lzc = 4'd1;
+            else if (abs_sum_mant_ext[8])  lzc = 4'd2;
+            else if (abs_sum_mant_ext[7])  lzc = 4'd3;
+            else if (abs_sum_mant_ext[6])  lzc = 4'd4;
+            else if (abs_sum_mant_ext[5])  lzc = 4'd5;
+            else if (abs_sum_mant_ext[4])  lzc = 4'd6;
+            else if (abs_sum_mant_ext[3])  lzc = 4'd7;
+            else if (abs_sum_mant_ext[2])  lzc = 4'd8;
+            else if (abs_sum_mant_ext[1])  lzc = 4'd9;
             else                       lzc = 4'd10;
 
             if (final_exp > {4'b0, lzc}) begin
-                norm_mant = sum_mant_ext << lzc;
+                norm_mant = abs_sum_mant_ext << lzc;
                 final_exp = final_exp - {4'b0, lzc};
             end else begin
-                norm_mant = sum_mant_ext << (final_exp - 1);
+                norm_mant = abs_sum_mant_ext << (final_exp - 1);
                 final_exp = 8'h0;
             end
         end
@@ -147,7 +152,8 @@ import fp4_pkg::*;
 
             round_up = g && (r || s || r_mant[0]);
 
-            op_res.sign = max_op.sign;
+            // toggle if eff_sub is 1, and there's a sign flip.
+            op_res.sign = max_op.sign ^ eff_sub_sign;
 
             if (round_up) begin
                 if (r_mant == 7'h7F) begin
@@ -178,37 +184,37 @@ import fp4_pkg::*;
     // ---------------------------------------------------------------------
     // This block triggers whenever the output changes, printing the full 
     // internal state of the unpack, shift, math, and rounding stages.
-    always @(sum) begin
-        // Only print valid operations (skipping initial/X states in simulation)
-        if (^a !== 1'bx && ^b !== 1'bx) begin
-            $display("----------------------------------------------------------------");
-            $display("[DEBUG ADDER] Inputs: A = 16'h%4h | B = 16'h%4h", a, b);
-            $display("  Unpacked A: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_a.sign, op_a.exp, op_a.mant);
-            $display("  Unpacked B: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_b.sign, op_b.exp, op_b.mant);
-            $display("----------------------------------------------------------------");
-            $display("  Alignment Stage:");
-            $display("    Exp Diff      = %d", exp_diff);
-            $display("    Max Mant (Int)= 11'b%11b", max_mant);
-            $display("    Min Mant (Int)= 11'b%11b", min_mant);
-            $display("    Shifted Min   = 11'b%11b", min_mant_shifted);
-            $display("----------------------------------------------------------------");
-            $display("  Arithmetic Stage:");
-            $display("    Effective Sub = %b", eff_sub);
-            $display("    Sum Mant Ext  = 12'b%12b", sum_mant_ext);
-            $display("----------------------------------------------------------------");
-            $display("  Normalization Stage:");
-            $display("    Final Exp Pre = 8'h%2h", final_exp);
-            $display("    Norm Mant     = 12'b%12b", norm_mant);
-            $display("----------------------------------------------------------------");
-            $display("  Rounding & Packing Stage (Targeting Bits 9:3):");
-            $display("    Extracted Mantissa Bits [9:3] = 7'b%7b (Hex: 7'h%2h)", norm_mant[9:3], norm_mant[9:3]);
-            $display("    Guard (Bit 2)                 = %b", norm_mant[2]);
-            $display("    Round (Bit 1)                 = %b", norm_mant[1]);
-            $display("    Sticky (Bit 0)                = %b", norm_mant[0]);
-            $display("    Packed Result                 = 16'h%4h", sum);
-            $display("----------------------------------------------------------------\n");
-        end
-    end
+    // always @(sum) begin
+    //     // Only print valid operations (skipping initial/X states in simulation)
+    //     if (^a !== 1'bx && ^b !== 1'bx) begin
+    //         $display("----------------------------------------------------------------");
+    //         $display("[DEBUG ADDER] Inputs: A = 16'h%4h | B = 16'h%4h", a, b);
+    //         $display("  Unpacked A: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_a.sign, op_a.exp, op_a.mant);
+    //         $display("  Unpacked B: Sign=%b, Exp=8'h%2h, Mant=7'h%2h", op_b.sign, op_b.exp, op_b.mant);
+    //         $display("----------------------------------------------------------------");
+    //         $display("  Alignment Stage:");
+    //         $display("    Exp Diff      = %d", exp_diff);
+    //         $display("    Max Mant (Int)= 11'b%11b", max_mant);
+    //         $display("    Min Mant (Int)= 11'b%11b", min_mant);
+    //         $display("    Shifted Min   = 11'b%11b", min_mant_shifted);
+    //         $display("----------------------------------------------------------------");
+    //         $display("  Arithmetic Stage:");
+    //         $display("    Effective Sub = %b", eff_sub);
+    //         $display("    Sum Mant Ext  = 12'b%12b", sum_mant_ext);
+    //         $display("----------------------------------------------------------------");
+    //         $display("  Normalization Stage:");
+    //         $display("    Final Exp Pre = 8'h%2h", final_exp);
+    //         $display("    Norm Mant     = 12'b%12b", norm_mant);
+    //         $display("----------------------------------------------------------------");
+    //         $display("  Rounding & Packing Stage (Targeting Bits 9:3):");
+    //         $display("    Extracted Mantissa Bits [9:3] = 7'b%7b (Hex: 7'h%2h)", norm_mant[9:3], norm_mant[9:3]);
+    //         $display("    Guard (Bit 2)                 = %b", norm_mant[2]);
+    //         $display("    Round (Bit 1)                 = %b", norm_mant[1]);
+    //         $display("    Sticky (Bit 0)                = %b", norm_mant[0]);
+    //         $display("    Packed Result                 = 16'h%4h", sum);
+    //         $display("----------------------------------------------------------------\n");
+    //     end
+    // end
 // --- [end] ---
 
 endmodule

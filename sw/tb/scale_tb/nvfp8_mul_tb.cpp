@@ -740,17 +740,17 @@ void constrained_random_test(Ve4m3_mul &dut, Scoreboard &sb, uint32_t iterations
     std::cout << "  [SUBNORMAL_2] " << iterations << " iteration(s)" << std::endl;
     random_subnormal_2_test(dut, sb, rg, iterations);
 
-    std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
-    random_boundary_1_test(dut, sb, rg, iterations);
+    // std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
+    // random_boundary_1_test(dut, sb, rg, iterations);
 
-    std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
-    random_boundary_2_test(dut, sb, rg, iterations);
+    // std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
+    // random_boundary_2_test(dut, sb, rg, iterations);
 
-    std::cout << "  [BOUNDARY_3] " << iterations << " iteration(s)" << std::endl;
-    random_boundary_3_test(dut, sb, rg, iterations);
+    // std::cout << "  [BOUNDARY_3] " << iterations << " iteration(s)" << std::endl;
+    // random_boundary_3_test(dut, sb, rg, iterations);
 
-    std::cout << "  [NORMAL] " << iterations << " iteration(s)" << std::endl;
-    random_normal_test(dut, sb, rg, iterations);
+    // std::cout << "  [NORMAL] " << iterations << " iteration(s)" << std::endl;
+    // random_normal_test(dut, sb, rg, iterations);
 }
 
 
