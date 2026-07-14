@@ -258,17 +258,17 @@ for (int i = 0; i < TT * BS; i++)
 //mac_zz(); //clear tile here
 //rm_for test scale fsm end
 
-//load_act_scales(act_scales);
-//load_w_scales(weight_scales);
+load_act_scales(act_scales);
+load_w_scales(weight_scales);
 
      load_v0((uint32_t *)mat_a);
 
     mac_mem_test_v0((uint32_t *)mat_a);
 
 //rm_for test scale fsm
-load_act_scales(act_scales);
+//load_act_scales(act_scales);
 mac_as();
-load_w_scales(weight_scales);
+//load_w_scales(weight_scales);
 mac_ws();
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end

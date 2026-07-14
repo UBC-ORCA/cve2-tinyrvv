@@ -1313,14 +1313,14 @@ mac_mem_test_v31:
 
 .globl load_act_scales
 load_act_scales:
-    lw  t1, 0(a0)
-    lw  t2, 4(a0)
+    lw  t1, 0(a0) # x6  = act_scale[0]
+    lw  t2, 4(a0)  # x7  = act_scale[1]
     ret
 
 .globl load_w_scales
 load_w_scales:
-    lw  t1, 0(a0)
-    lw  t2, 4(a0)
+    lw  t3, 0(a0) # x28 = w_scale[0]
+    lw  t4, 4(a0) # x29 = w_scale[1]
     ret
 
 
@@ -1393,7 +1393,7 @@ mac_as:
 .globl mac_ws
 mac_ws:
     # MAC_WS s2, s3
-    MAC_WS(6,7)
+    MAC_WS(28,29)
     ret
 
 //[end]
