@@ -1,5 +1,6 @@
 module mac_controller #(
-    parameter int VL = 8
+    parameter int VL = 32, // Updated default to 32 to support the 32 flattened MAC iterations
+parameter int TT = 8
 ) (
     input  logic                 clk_i,
     input  logic                 rst_ni,
@@ -55,8 +56,8 @@ module mac_controller #(
     input  logic [4:0]           scalar_waddr_i,
 
     // Optimized Vector Slices
-    output logic [3:0]           act_vector_o    [0:VL-1],
-    output logic [3:0]           weight_vector_o [0:VL-1],
+    output logic [3:0]           act_vector_o    [0:TT-1],
+    output logic [3:0]           weight_vector_o [0:TT-1],
 
     // Scale register interface
     output logic [31:0]          act_scale_lo_o,
@@ -94,6 +95,17 @@ module mac_controller #(
     localparam int CNT_W = $clog2(VL);
     logic [CNT_W-1:0] count_q;
     logic [CNT_W-1:0] count_d;
+
+    //------------------------------------------------------------
+    // Patched: Flattened VRF traversal decoding logic
+    //------------------------------------------------------------
+    logic [1:0] reg_group;
+    logic [2:0] elem_idx;
+    logic [4:0] mac_vrf_addr;
+
+    assign reg_group    = count_q[4:3]; // Decodes register offset (0..3)
+    assign elem_idx     = count_q[2:0]; // Decodes element index within register (0..7)
+    assign mac_vrf_addr = vs1_q + reg_group;
 
     typedef enum logic [1:0] { IDLE, EXEC, DONE } state_e;
     state_e state_q, state_d;
@@ -286,9 +298,12 @@ module mac_controller #(
                     default: ;
                 endcase
 
+                //------------------------------------------------------------
+                // Patched: Updated assignments for OP_VMAC layout matching
+                //------------------------------------------------------------
                 if (op_q == cve2_pkg::OP_VMAC) begin
-                    mac_vrf_raddr_o = vs1_q;
-                    mac_vrf_relem_o = count_q[2:0];
+                    mac_vrf_raddr_o = mac_vrf_addr;
+                    mac_vrf_relem_o = elem_idx;
                     if (!mem_req_sent_q) begin
                         data_req_o  = 1'b1;
                         data_addr_o = base_q + (count_q << 2); 
@@ -302,12 +317,50 @@ module mac_controller #(
         endcase
     end
 
-    genvar k;
-    generate
-        for (k = 0; k < VL; k++) begin : GEN_UNPACK_NIBBLES
-            assign act_vector_o[k]    = act_packed[4*k +:4];
-            assign weight_vector_o[k] = weight_packed[4*k +:4];
-        end
-    endgenerate
+  //  genvar k;
+  //  generate
+    //    for (k = 0; k < VL; k++) begin : GEN_UNPACK_NIBBLES
+    //        assign act_vector_o[k]    = act_packed[4*k +:4];
+    //        assign weight_vector_o[k] = weight_packed[4*k +:4];
+    //    end
+   // endgenerate
+
+genvar k;
+generate
+    for (k = 0; k < TT; k++) begin : GEN_UNPACK_NIBBLES
+        assign act_vector_o[k] =
+            act_packed[4*k +: 4];
+
+        assign weight_vector_o[k] =
+            weight_packed[4*k +: 4];
+    end
+endgenerate
+
+//print
+//`ifdef MAC_DEBUG
+always_ff @(posedge clk_i) begin
+    if (rst_ni &&
+        (op_q == cve2_pkg::OP_VMAC) &&
+        data_rvalid_i) begin
+
+$display(
+    "[%0t] [VMAC] vreg=v%0d elem=%0d flat=%0d vrf=%08x mem_addr=%08x weight=%08x mem_req=%0b mem_gnt=%0b mem_rvalid=%0b mac_en=%0b",
+    $time,
+    mac_vrf_addr,
+    elem_idx,
+    count_q,
+    mac_vrf_rdata_i,
+    base_q + (count_q << 2),
+    data_rdata_i,
+    mem_req_sent_q,
+    data_gnt_i,
+    data_rvalid_i,
+    mac_en_o
+);
+    end
+end
+//`endif
+
+// end
 
 endmodule

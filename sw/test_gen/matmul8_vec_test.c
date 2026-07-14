@@ -9,7 +9,8 @@ extern void matmul8_vec(const volatile uint32_t *a,
 
 #define MAT_N 8
 #define TT 8
-#define BS 8
+//#define BS 8
+#define BS 32
 #define NVREG 32
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
@@ -220,7 +221,7 @@ uint32_t data;
 
 for (int i = 0; i < TT * BS; i++)
 {
-    mat_a[i] = 0x11111111 * (i + 1);
+    mat_a[i] = 0x11111111 * ((i + 1)%8);
  //	mat_a[i] = vec[i % 8];
 }
 
@@ -261,7 +262,15 @@ for (int i = 0; i < TT * BS; i++)
 load_act_scales(act_scales);
 load_w_scales(weight_scales);
 
-     load_v0((uint32_t *)mat_a);
+     //load_v0((uint32_t *)mat_a);
+     //load_v1((uint32_t *)mat_a); //test vec batch
+     //load_v2((uint32_t *)mat_a); //test vec batch
+     //load_v3((uint32_t *)mat_a); //test vec batch
+load_v0(&mat_a[0]);
+load_v1(&mat_a[8]);
+load_v2(&mat_a[16]);
+load_v3(&mat_a[24]);
+
 
     mac_mem_test_v0((uint32_t *)mat_a);
 

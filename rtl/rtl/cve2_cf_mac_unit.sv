@@ -176,7 +176,8 @@ module cve2_cf_mac_unit
     assign data_wdata_o = mem_wdata;
 
     mac_controller #(
-        .VL(TT)
+        .VL(32),
+        .TT(TT)
     ) u_ctrl (
         .clk_i                (clk_i),
         .rst_ni               (rst_ni),
