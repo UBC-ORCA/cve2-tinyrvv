@@ -8,7 +8,7 @@ import fp4_pkg::*;
 )(
     input  logic [15:0] a,
     input  logic [15:0] b,
-    output logic [15:0] sum
+    output logic [15:0] sum 
 );
 
     // Local aliases mapping back to standard structural layouts
@@ -42,6 +42,8 @@ import fp4_pkg::*;
     logic [EXT_MANT_WIDTH:0] norm_mant;
     logic [3:0]  lzc; 
 
+    logic max_op_subnorm, min_op_subnorm;
+
     always_comb begin 
 
         /* 
@@ -72,9 +74,15 @@ import fp4_pkg::*;
             exp_diff = -exp_diff;
         end
 
+        max_op_subnorm = max_op.exp == '0;
+        min_op_subnorm = min_op.exp == '0;
+
+        /* subnormal exponent accounting */
+        exp_diff += max_op_subnorm - min_op_subnorm;
+
         // Extract mantissas and append hidden bits (handle zero operands)
-        max_mant = (max_op.exp == '0) ? '0 : {1'b1 , max_op.mant, 3'b000};
-        min_mant = (min_op.exp == '0) ? '0 : {1'b1, min_op.mant, 3'b000};
+        max_mant = {~max_op_subnorm , max_op.mant, 3'b000};
+        min_mant = {~min_op_subnorm, min_op.mant, 3'b000};
 
         // Align smaller operand's mantissa with dynamic sticky-bit retention
         if (exp_diff >= EXT_MANT_WIDTH) begin
@@ -101,8 +109,8 @@ import fp4_pkg::*;
         // 3. NORMALIZATION
         // ---------------------------------------------------------------------
         final_exp = max_op.exp;
-        norm_mant = sum_mant_ext;
         abs_sum_mant_ext = sum_mant_ext[EXT_MANT_WIDTH] ? -sum_mant_ext : sum_mant_ext;
+        norm_mant = abs_sum_mant_ext;
         eff_sub_sign = sum_mant_ext[EXT_MANT_WIDTH] & eff_sub == 1'b1;
 
         if (sum_mant_ext == '0) begin
@@ -112,10 +120,16 @@ import fp4_pkg::*;
             // Overflow during addition: shift right and preserve sticky bit
             norm_mant = sum_mant_ext >> 1;
             norm_mant[0] = norm_mant[0] | sum_mant_ext[0]; 
-            final_exp = final_exp + 1'b1;
-        end 
-        else if (eff_sub == 1'b1 && !abs_sum_mant_ext[EXT_MANT_WIDTH-1]) begin
+            final_exp = final_exp + 1'b1;  
+        
+        // subnormal add, when the hidden bit is 1, promote exponent
+        end else if ((eff_sub == 1'b0) && sum_mant_ext[EXT_MANT_WIDTH-1]
+                        && max_op_subnorm && min_op_subnorm) begin
+            final_exp = final_exp + 1'b1; 
 
+        /* Mantissa hidden bit is 0 */
+        end else if ((eff_sub == 1'b1) && !abs_sum_mant_ext[EXT_MANT_WIDTH-1]
+                        && (~max_op_subnorm || ~min_op_subnorm)) begin
             // Cancellation during subtraction: shift left by LZC
             if      (abs_sum_mant_ext[10]) lzc = 4'd0;
             else if (abs_sum_mant_ext[9])  lzc = 4'd1;
@@ -136,14 +150,13 @@ import fp4_pkg::*;
                 norm_mant = abs_sum_mant_ext << (final_exp - 1);
                 final_exp = 8'h0;
             end
-        end
+        end 
 
         // ---------------------------------------------------------------------
         // 4. ROUNDING (Round to Nearest, Ties to Even) & PACKING
         // ---------------------------------------------------------------------
         if (sum_mant_ext != '0) begin
  
-
             // --- FIXED BIT INDEXING HERE ---
             r_mant = norm_mant[9:3]; // Extract ONLY the 7 fractional mantissa bits
             g      = norm_mant[2];   // Guard bit
@@ -200,7 +213,9 @@ import fp4_pkg::*;
     //         $display("----------------------------------------------------------------");
     //         $display("  Arithmetic Stage:");
     //         $display("    Effective Sub = %b", eff_sub);
+    //         $display("    Effective Sub Sign = %b", eff_sub_sign);
     //         $display("    Sum Mant Ext  = 12'b%12b", sum_mant_ext);
+    //         $display("    Abs Sub Sign = 12'b%12b", abs_sum_mant_ext);
     //         $display("----------------------------------------------------------------");
     //         $display("  Normalization Stage:");
     //         $display("    Final Exp Pre = 8'h%2h", final_exp);

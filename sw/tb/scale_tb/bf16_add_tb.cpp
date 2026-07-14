@@ -11,6 +11,16 @@
 #include "verilated.h"
 #include "Vparameterized_adder.h"
 
+// EXHAUST TEST FLAGS
+#define IGNORE_NAN  1
+#define IGNORE_ZERO 0
+#define IGNORE_SUBNORMAL  0
+#define IGNORE_INF 1
+
+#define PRINT_MACRO(x) \
+    std::cout << #x << " = " << (x) << '\n'
+
+
 using bf16_t = uint16_t;
 
 float bf16_to_float(bf16_t x){
@@ -54,6 +64,12 @@ bool bf16_is_subnormal(bf16_t x){
     uint16_t exp  = (x >> 7) & 0xFF;
     uint16_t mant = x & 0x7F;
     return (exp == 0) && (mant != 0);
+}
+
+bool bf16_is_inf(bf16_t x){
+    uint16_t exp  = (x >> 7) & 0xFF;
+    uint16_t mant = x & 0x7F;
+    return exp == 0xFF;
 }
 
 /* Sign is ignored when either side is a NaN or a zero. */
@@ -402,20 +418,20 @@ void constrained_random_test(Vparameterized_adder &dut, Scoreboard &sb, uint32_t
     std::cout << "CONSTRAINED RANDOM TESTING" << std::endl;
     RandGen rg;
 
-    // std::cout << "  [SUBNORMAL_1] " << iterations << " iteration(s)" << std::endl;
-    // random_subnormal_1_test(dut, sb, rg, iterations);
+    std::cout << "  [SUBNORMAL_1] " << iterations << " iteration(s)" << std::endl;
+    random_subnormal_1_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [SUBNORMAL_2] " << iterations << " iteration(s)" << std::endl;
-    // random_subnormal_2_test(dut, sb, rg, iterations);
+    std::cout << "  [SUBNORMAL_2] " << iterations << " iteration(s)" << std::endl;
+    random_subnormal_2_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [MIN_EXP_NORMAL_VS_SUBNORMAL] " << iterations << " iteration(s)" << std::endl;
-    // random_min_exp_normal_vs_subnormal_test(dut, sb, rg, iterations);
+    std::cout << "  [MIN_EXP_NORMAL_VS_SUBNORMAL] " << iterations << " iteration(s)" << std::endl;
+    random_min_exp_normal_vs_subnormal_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
-    // random_boundary_1_test(dut, sb, rg, iterations);
+    std::cout << "  [BOUNDARY_1] " << iterations << " iteration(s)" << std::endl;
+    random_boundary_1_test(dut, sb, rg, iterations);
 
-    // std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
-    // random_boundary_2_test(dut, sb, rg, iterations);
+    std::cout << "  [BOUNDARY_2] " << iterations << " iteration(s)" << std::endl;
+    random_boundary_2_test(dut, sb, rg, iterations);
 
     std::cout << "  [NORMAL] " << iterations << " iteration(s)" << std::endl;
     random_normal_test(dut, sb, rg, iterations);
@@ -469,29 +485,69 @@ int main(int argc, char** argv){
     sb.start();
 
     // constrained_test(dut, sb);
-    constrained_random_test(dut, sb);
+    // constrained_random_test(dut, sb);
     // eval_dut(dut, sb, 0x25a3, 0xa5da);
 
-    // std::cout << "EXHAUSTIVE TESTING" << std::endl;
-    // for (uint32_t a = a_offset; a < 65536; a += a_stride) {
-    //     for (uint32_t b = b_offset; b < 65536; b += b_stride) {
+    std::cout << "EXHAUSTIVE TESTING" << std::endl;
+    std::cout << "EXHAUSTING TESTING FLAGS" << std::endl;
+    #if(IGNORE_NAN)
+        PRINT_MACRO(IGNORE_NAN);
+    #endif
 
-    //         /* Skip nan and zero values; already covered directly above. */
-    //         if (bf16_is_nan(a) || bf16_is_nan(b) || bf16_is_zero(a) || bf16_is_zero(b)){
-    //             continue;
-    //         }
-    //         eval_dut(dut, sb, static_cast<bf16_t>(a), static_cast<bf16_t>(b));
+    #if(IGNORE_ZERO)
+        PRINT_MACRO(IGNORE_ZERO);
+    #endif
 
-    //         ++completed;
+    #if(IGNORE_SUBNORMAL)
+        PRINT_MACRO(IGNORE_SUBNORMAL);
+    #endif
+    
+    #if (IGNORE_INF)
+        PRINT_MACRO(IGNORE_INF);
+    #endif
 
-    //         // Update every million tests to reduce overhead
-    //         if ((completed % 1000000) == 0) {
-    //             progress(
-    //                 static_cast<float>(completed) /
-    //                 static_cast<float>(total_tests));
-    //         }
-    //     }
-    // }
+    for (uint32_t a = a_offset; a < 65536; a += a_stride) {
+        for (uint32_t b = b_offset; b < 65536; b += b_stride) {
+
+            /* Skip nan and zero values; already covered directly above. */
+            #if(IGNORE_NAN)
+            if (bf16_is_nan(a) || bf16_is_nan(b)){
+                continue;
+            }
+            #endif
+
+            #if(IGNORE_ZERO)
+            if (bf16_is_zero(a) || bf16_is_zero(b)){
+                continue;
+            }
+            #endif
+
+
+            #if(IGNORE_INF)
+            if (bf16_is_inf(a) || bf16_is_inf(b)){
+                continue;
+            }
+            #endif
+
+
+            #if(IGNORE_SUBNORMAL)
+            if (bf16_is_subnormal(a) || bf16_is_subnormal(b)){
+                continue;
+            }
+            #endif
+
+            eval_dut(dut, sb, static_cast<bf16_t>(a), static_cast<bf16_t>(b));
+
+            ++completed;
+
+            // Update every million tests to reduce overhead
+            if ((completed % 1000000) == 0) {
+                progress(
+                    static_cast<float>(completed) /
+                    static_cast<float>(total_tests));
+            }
+        }
+    }
 
     progress(1.0);
     sb.end();
