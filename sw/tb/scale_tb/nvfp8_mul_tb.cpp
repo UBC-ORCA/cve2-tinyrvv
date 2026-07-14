@@ -730,7 +730,7 @@ void random_normal_test(Ve4m3_mul &dut, Scoreboard &sb, RandGen &rg, uint32_t n)
     }
 }
 
-void constrained_random_test(Ve4m3_mul &dut, Scoreboard &sb, uint32_t iterations = 10000) {
+void constrained_random_test(Ve4m3_mul &dut, Scoreboard &sb, uint32_t iterations = (1 << 31)) {
     std::cout << "CONSTRAINED RANDOM TESTING (no NaNs)" << std::endl;
     RandGen rg;
 
