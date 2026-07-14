@@ -283,6 +283,8 @@ load_v7(&mat_a[56]);
 mac_as();
 //load_w_scales(weight_scales);
 mac_ws();
+mac_zz(); //clear tile here
+
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end
     mac_mem_test_v4((uint32_t *)mat_a);
