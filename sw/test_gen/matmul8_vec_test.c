@@ -91,6 +91,17 @@ uint32_t vec[8] = {
     0x88888888
 };
 
+uint32_t vec2[8] = {
+    0x88888888,
+    0x77777777,
+    0x66666666,
+    0x55555555,
+    0x44444444,
+    0x33333333,
+    0x22222222,
+    0x11111111
+};
+
 uint32_t bias0[8] = {
     0x00004589,0x00004589,0x00004589,0x00004589,
     0x00004589,0x00004589,0x00004589,0x00004589
@@ -354,6 +365,10 @@ load_v3(&mat_a[24]);
 
 // Load bias vector into v4
 load_v4(vec);
+load_v5(vec2);
+load_v6(vec);
+load_v7(vec2);
+
 //load_v4(&mat_a[32]);
 //load_v5(&mat_a[40]);
 //load_v6(&mat_a[48]);
@@ -369,7 +384,9 @@ mac_ws();
 //mac_zz(); //clear tile here
 
 mac_acc_v4(); // added bias
-
+mac_acc_v5(); // added bias
+mac_acc_v6(); // added bias
+mac_acc_v7(); // added bias
 
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end

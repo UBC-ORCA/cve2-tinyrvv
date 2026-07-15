@@ -133,6 +133,10 @@ module mac_controller #(
     logic [ACC_CNT_W-1:0] acc_count_q;
     logic [ACC_CNT_W-1:0] acc_count_d;
 
+    // Patch 1: Add MACACC VRF read valid pipeline register
+    logic                 acc_vrf_valid_q;
+    logic                 acc_vrf_valid_d;
+
     // Latched bias vector register
     logic [4:0]           bias_vs_q;
 
@@ -231,10 +235,14 @@ module mac_controller #(
             // MACACC Reset
             acc_count_q        <= '0;
             bias_vs_q          <= '0;
+            // Patch 2: Reset the pipeline register
+            acc_vrf_valid_q    <= 1'b0;
         end else begin
             state_q            <= state_d;
             count_q            <= count_d;
+            // Patch 3: Update sequential block
             acc_count_q        <= acc_count_d;
+            acc_vrf_valid_q    <= acc_vrf_valid_d;
             mem_req_sent_q     <= mem_req_sent_d;
             
             snapshot_valid_q   <= 1'b0;
@@ -276,16 +284,19 @@ module mac_controller #(
     end
 
     always_comb begin
-        state_d        = state_q;
-        count_d        = count_q;
-        acc_count_d    = acc_count_q;
-        mem_req_sent_d = mem_req_sent_q;
+        // Patch 4: Default assignments
+        state_d         = state_q;
+        count_d         = count_q;
+        acc_count_d     = acc_count_q;
+        mem_req_sent_d  = mem_req_sent_q;
+        acc_vrf_valid_d = acc_vrf_valid_q;
 
         case (state_q)
             IDLE: begin
-                count_d        = '0;
-                acc_count_d    = '0;
-                mem_req_sent_d = 1'b0;
+                count_d         = '0;
+                acc_count_d     = '0;
+                acc_vrf_valid_d = 1'b0;
+                mem_req_sent_d  = 1'b0;
                 if (req_valid_i) begin
                     state_d = EXEC;
                 end
@@ -320,16 +331,25 @@ module mac_controller #(
                     end
                 end
                 //------------------------------------------------------------
-                // Patched: MACACC execution FSM completion with Wait Sync
+                // Patch 5: Replace MACACC FSM Section
                 //------------------------------------------------------------
                 else if (op_q == cve2_pkg::OP_MACACC) begin
-                    if (scale_busy_i) begin
-                        state_d = WAIT_SCALE;
-                    end else begin
-                        if (acc_count_q == (ACC_VL-1)) begin
+                    // First cycle issues VRF read
+                    if (!acc_vrf_valid_q) begin
+                        acc_vrf_valid_d = 1'b1;
+                    end
+                    // Second cycle consumes returned VRF data
+                    else begin
+                        acc_vrf_valid_d = 1'b0;
+
+                        if (scale_busy_i) begin
+                            state_d = WAIT_SCALE;
+                        end
+                        else if (acc_count_q == (ACC_VL-1)) begin
                             state_d     = DONE;
                             acc_count_d = '0;
-                        end else begin
+                        end
+                        else begin
                             acc_count_d = acc_count_q + 1'b1;
                         end
                     end
@@ -342,8 +362,9 @@ module mac_controller #(
             WAIT_SCALE: begin
                 // Transition back to EXEC one clean cycle after scale_busy drops
                 if (!scale_busy_i) begin
-                    acc_count_d = '0;
-                    state_d     = EXEC;
+                    acc_count_d     = '0;
+                    acc_vrf_valid_d = 1'b0;
+                    state_d         = EXEC;
                 end
             end
 
@@ -370,8 +391,10 @@ module mac_controller #(
         mac_en_o = ((state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i) || 
                    ((state_q == EXEC) && (op_q == cve2_pkg::OP_MAC));
 
-        // Generate Accumulator Enable dynamically when in active EXEC state
-        mac_acc_en_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_MACACC);
+        // Patch 6: Gate MACACC enable
+        mac_acc_en_o = (state_q == EXEC) && 
+                       (op_q == cve2_pkg::OP_MACACC) && 
+                       acc_vrf_valid_q;
 
         clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
 
