@@ -18,6 +18,7 @@ module mac_controller #(
 
     // Control to MAC array
     output logic                 mac_en_o,
+    output logic                 mac_acc_en_o, // Controls bias accumulation execution
     output logic                 clear_o,
 
     // --- [stev] ---
@@ -71,7 +72,12 @@ module mac_controller #(
 
     // Scale FSM handshake ports
     input  logic                 scale_busy_i,
-    input  logic                 scale_done_i
+    input  logic                 scale_done_i,
+
+    // --- [Patched Output Interfaces] ---
+    output logic [2:0]           mac_acc_row_o,  // Decoded Row index (0-7)
+    output logic [2:0]           mac_acc_col_o,  // Decoded Column index (0-7)
+    output logic [31:0]          mac_bias_word_o // Raw 32-bit word from VRF
 );
 
     logic [31:0] act_scale_lo_q;
@@ -110,7 +116,74 @@ module mac_controller #(
     // Patched: Register to delay the snapshot by 1 clock cycle 
     logic        vmac_last_q;
 
-    typedef enum logic [1:0] { IDLE, EXEC, DONE } state_e;
+    //------------------------------------------------------------
+    // Patched: MACACC Dedicated Counter & Traversal Decode
+    //
+    // One vector register:
+    //   8 x 32-bit words
+    //   16 x BF16 values
+    //   2 accumulator rows
+    //
+    // acc_count_q:
+    //   0-7 = VRF word index
+    //------------------------------------------------------------
+    localparam int ACC_VL = 8;
+    localparam int ACC_CNT_W = $clog2(ACC_VL);
+
+    logic [ACC_CNT_W-1:0] acc_count_q;
+    logic [ACC_CNT_W-1:0] acc_count_d;
+
+    // Latched bias vector register
+    logic [4:0]           bias_vs_q;
+
+    // VRF word index
+    logic [2:0]           acc_word_idx;
+
+    // row inside vector register
+    logic                 acc_row_offset;
+
+    // column base (two BF16 per word)
+    logic [2:0]           acc_col_base;
+
+    // VRF address for MACACC
+    logic [4:0]           acc_vrf_addr;
+
+    // Decode current word
+    assign acc_word_idx   = acc_count_q;
+
+    // First 4 words = first row, last 4 words = second row
+    assign acc_row_offset = acc_count_q[2];
+
+    // Word 0 -> columns 0,1
+    // Word 1 -> columns 2,3
+    // Word 2 -> columns 4,5
+    // Word 3 -> columns 6,7
+    assign acc_col_base   = {acc_count_q[1:0], 1'b0};
+
+    // One MACACC instruction operates on one VRF register
+    assign acc_vrf_addr   = bias_vs_q;
+
+    //------------------------------------------------------------
+    // Accumulator destination
+    //
+    // vs1 selects the two-row block:
+    //   v0 -> rows 0,1
+    //   v1 -> rows 2,3
+    //   v2 -> rows 4,5
+    //   v3 -> rows 6,7
+    //------------------------------------------------------------
+    assign mac_acc_row_o  = {bias_vs_q[1:0], acc_row_offset};
+    assign mac_acc_col_o  = acc_col_base;
+
+    //------------------------------------------------------------
+    // Patched: Bias Word Output (Forwarding 32-bit word from VRF)
+    //------------------------------------------------------------
+    assign mac_bias_word_o = mac_vrf_rdata_i;
+
+    //------------------------------------------------------------
+    // Patched: FSM States (Patch 1)
+    //------------------------------------------------------------
+    typedef enum logic [1:0] { IDLE, EXEC, WAIT_SCALE, DONE } state_e;
     state_e state_q, state_d;
 
     logic [31:0] act_packed;
@@ -155,9 +228,13 @@ module mac_controller #(
             act_scale_pulse    <= 1'b0;
             weight_scale_pulse <= 1'b0;
             vmac_last_q        <= 1'b0;
+            // MACACC Reset
+            acc_count_q        <= '0;
+            bias_vs_q          <= '0;
         end else begin
             state_q            <= state_d;
             count_q            <= count_d;
+            acc_count_q        <= acc_count_d;
             mem_req_sent_q     <= mem_req_sent_d;
             
             snapshot_valid_q   <= 1'b0;
@@ -170,6 +247,8 @@ module mac_controller #(
                 weight_blk_q   <= weight_blk_i;
                 base_q         <= base_i;
                 scalar_waddr_q <= scalar_waddr_i;
+                // Latch Vs1 as base for bias register offset during MACACC
+                bias_vs_q      <= vs1_i;
 
                 unique case (cf_req_op_i)
                     cve2_pkg::OP_MAC_AS: begin
@@ -199,11 +278,13 @@ module mac_controller #(
     always_comb begin
         state_d        = state_q;
         count_d        = count_q;
+        acc_count_d    = acc_count_q;
         mem_req_sent_d = mem_req_sent_q;
 
         case (state_q)
             IDLE: begin
                 count_d        = '0;
+                acc_count_d    = '0;
                 mem_req_sent_d = 1'b0;
                 if (req_valid_i) begin
                     state_d = EXEC;
@@ -238,7 +319,34 @@ module mac_controller #(
                         end
                     end
                 end
+                //------------------------------------------------------------
+                // Patched: MACACC execution FSM completion with Wait Sync
+                //------------------------------------------------------------
+                else if (op_q == cve2_pkg::OP_MACACC) begin
+                    if (scale_busy_i) begin
+                        state_d = WAIT_SCALE;
+                    end else begin
+                        if (acc_count_q == (ACC_VL-1)) begin
+                            state_d     = DONE;
+                            acc_count_d = '0;
+                        end else begin
+                            acc_count_d = acc_count_q + 1'b1;
+                        end
+                    end
+                end
             end
+
+            //------------------------------------------------------------
+            // Patched: WAIT_SCALE handler logic
+            //------------------------------------------------------------
+            WAIT_SCALE: begin
+                // Transition back to EXEC one clean cycle after scale_busy drops
+                if (!scale_busy_i) begin
+                    acc_count_d = '0;
+                    state_d     = EXEC;
+                end
+            end
+
             DONE: begin
                 state_d = IDLE;
             end
@@ -258,10 +366,14 @@ module mac_controller #(
         scalar_we_o    = 1'b0;
         scalar_waddr_o = scalar_waddr_q;
 
+        // Shared Activation logic
         mac_en_o = ((state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i) || 
                    ((state_q == EXEC) && (op_q == cve2_pkg::OP_MAC));
+
+        // Generate Accumulator Enable dynamically when in active EXEC state
+        mac_acc_en_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_MACACC);
+
         clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
-//        clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ) || snapshot_valid_q;
 
         mac_vrf_raddr_o = '0;
         mac_vrf_relem_o = '0;
@@ -305,6 +417,9 @@ module mac_controller #(
                     default: ;
                 endcase
 
+                //------------------------------------------------------------
+                // Patched: Shared VRF Addressing logic
+                //------------------------------------------------------------
                 if (op_q == cve2_pkg::OP_VMAC) begin
                     mac_vrf_raddr_o = mac_vrf_addr;
                     mac_vrf_relem_o = elem_idx;
@@ -312,8 +427,20 @@ module mac_controller #(
                         data_req_o  = 1'b1;
                         data_addr_o = base_q + (count_q << 2); 
                     end
+                end 
+                else if (op_q == cve2_pkg::OP_MACACC) begin
+                    // One vector register per MACACC
+                    mac_vrf_raddr_o = bias_vs_q;
+                    // Eight sequential 32-bit words
+                    mac_vrf_relem_o = acc_count_q;
                 end
             end
+            
+            WAIT_SCALE: begin
+                // During wait, fetch addresses can stay default, bias remains inactive
+                busy_o = 1'b1;
+            end
+
             DONE: begin
                 done_o = 1'b1;
             end
@@ -332,7 +459,7 @@ module mac_controller #(
         end
     endgenerate
 
-    // print
+    // print debug statement for VMAC
     always_ff @(posedge clk_i) begin
         if (rst_ni &&
             (op_q == cve2_pkg::OP_VMAC) &&

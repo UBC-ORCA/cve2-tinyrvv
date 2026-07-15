@@ -225,7 +225,11 @@ module cve2_cf_mac_unit
         .scale_done_i         (scale_done),
         .req_ready_o          (req_ready_o),
         .busy_o               (busy_o),
-        .done_o               (done_o)
+        .done_o               (done_o),
+	.mac_acc_en_o  (mac_acc_en), // bias signals
+	.mac_acc_row_o (mac_acc_row),
+	.mac_acc_col_o (mac_acc_col),
+	.mac_bias_word_o(mac_bias_word) 
     );
 
     mac_array #(
@@ -473,46 +477,91 @@ logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
 // 8x8 accumulator tile
 //------------------------------------------------------------
 
+logic        mac_acc_en;
+logic [2:0]  mac_acc_row;
+logic [2:0]  mac_acc_col;
+logic [31:0]          mac_bias_word;
+
 integer r,c;
 
+//------------------------------------------------------------
+// Software BRAM Block Execution
+//------------------------------------------------------------
 always_ff @(posedge clk_i or negedge rst_ni) begin
-
     if (!rst_ni) begin
-
         for (r=0; r<TT; r++) begin
             for (c=0; c<TT; c++) begin
                 scale_accum_tile[r][c] <= 16'h0000;
             end
         end
-
     end
     else begin
-
+        //--------------------------------------------------
+        // Existing scaler writeback (Highest priority write)
+        //--------------------------------------------------
         if (scale_busy) begin
-
             if (!scale_row_sel) begin
-
                 scale_accum_tile[0][scale_col] <= scale_accum_out[0];
                 scale_accum_tile[2][scale_col] <= scale_accum_out[1];
                 scale_accum_tile[4][scale_col] <= scale_accum_out[2];
                 scale_accum_tile[6][scale_col] <= scale_accum_out[3];
-
             end
             else begin
-
                 scale_accum_tile[1][scale_col] <= scale_accum_out[0];
                 scale_accum_tile[3][scale_col] <= scale_accum_out[1];
                 scale_accum_tile[5][scale_col] <= scale_accum_out[2];
                 scale_accum_tile[7][scale_col] <= scale_accum_out[3];
-
             end
+        end
+        //--------------------------------------------------
+        // MACACC bias accumulation (Runs when scaling pipeline is idle)
+        //--------------------------------------------------
+        else if (mac_acc_en) begin 
+           // lower 16 bits -> even column
+    		scale_accum_tile[mac_acc_row][mac_acc_col] <= scale_accum_tile[mac_acc_row][mac_acc_col] + mac_bias_word[15:0];
+
+    	// upper 16 bits -> odd column
+    		scale_accum_tile[mac_acc_row][mac_acc_col+1'b1] <= scale_accum_tile[mac_acc_row][mac_acc_col+1'b1] + mac_bias_word[31:16];
+
+$display("[%0t] [MACACC_WR] row=%0d col=%0d bias_lo=%04h bias_hi=%04h old_lo=%04h old_hi=%04h",
+             $time,
+             mac_acc_row,
+             mac_acc_col,
+             mac_bias_word[15:0],
+             mac_bias_word[31:16],
+             scale_accum_tile[mac_acc_row][mac_acc_col],
+             scale_accum_tile[mac_acc_row][mac_acc_col+1]);
+
+        end
+    end
+end
+//to_RM_end
+
+// --- [stev] ---
+always_ff @(posedge clk_i) begin
+    if (scale_busy) begin
+        $display("[%0t] [SCALE_RD] row_sel=%0d col=%0d",
+                 $time,
+                 scale_row_sel,
+                 scale_col);
+
+        if (!scale_row_sel) begin
+            $display(" rows 0,2,4,6 values=%04h %04h %04h %04h",
+                     scale_accum_tile[0][scale_col],
+                     scale_accum_tile[2][scale_col],
+                     scale_accum_tile[4][scale_col],
+                     scale_accum_tile[6][scale_col]);
+        end
+        else begin
+            $display(" rows 1,3,5,7 values=%04h %04h %04h %04h",
+                     scale_accum_tile[1][scale_col],
+                     scale_accum_tile[3][scale_col],
+                     scale_accum_tile[5][scale_col],
+                     scale_accum_tile[7][scale_col]);
         end
     end
 end
 
-//to_RM_end
-
-// --- [stev] ---
 // ------------------------------------------------------------
 // Scale Accumulator Tile Dump
 // ------------------------------------------------------------

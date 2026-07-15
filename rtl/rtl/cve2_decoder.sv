@@ -1287,7 +1287,7 @@ output logic [3:0] cf_op_o, //for cfu mac
 
 cve2_pkg::mac_op_e cf_op;
 
-
+  //assign cf_funct3 = instr[14:12];
   //logic [2:0] cf_funct3;
   //logic [6:0] cf_funct7;
   //logic [4:0] cf_custom;
@@ -1305,12 +1305,16 @@ cve2_pkg::mac_op_e cf_op;
   localparam logic [6:0] CF_FUNCT7_MACWS   = 7'h0B;
 
 
+
 //31                20  19:15  14:12  11:7   6:0
 //+-------------------+------+------+------+-------+
 //|   imm[11:0]       | rs1  |000   | vs1  |CUSTOM1|
 //+-------------------+------+------+------+-------+
 
   localparam logic [6:0] CF_OPC_C1     = 7'b0101011;  //custom-1
+  localparam logic [2:0] CF_FUNCT3_VMAC   = 3'b000;
+  localparam logic [2:0] CF_FUNCT3_MACACC   = 3'b001;
+
 
 always_comb begin
 
@@ -1377,8 +1381,6 @@ if (opcode == CF_OPC_OPV) begin
 
 	end
 
-
-
 	default: begin
     		cf_type_ok = 1'b0;
 
@@ -1388,8 +1390,25 @@ if (opcode == CF_OPC_OPV) begin
 end
 
 else if (opcode == CF_OPC_C1) begin
+	 unique case (cf_funct3)
+        CF_FUNCT3_VMAC : begin 
+
 		cf_op = cve2_pkg::OP_VMAC;
 		cf_insn = 1'b1;
+	end
+        CF_FUNCT3_MACACC  : begin 
+
+		cf_op = cve2_pkg::OP_MACACC;
+		cf_insn = 1'b1;
+	end
+	default: begin
+    		cf_type_ok = 1'b0;
+
+	end
+
+    endcase
+
+
 end
 
 end

@@ -90,6 +90,37 @@ uint32_t vec[8] = {
     0x77777777,
     0x88888888
 };
+
+uint32_t bias0[8] = {
+    0x00004589,0x00004589,0x00004589,0x00004589,
+    0x00004589,0x00004589,0x00004589,0x00004589
+};
+
+uint32_t bias1[8] = {
+    0x00004589,0x00004589,0x00004589,0x00004589,
+    0x00004589,0x00004589,0x00004589,0x00004589
+};
+
+uint32_t bias2[8] = {
+    0x00004589,0x00004589,0x00004589,0x00004589,
+    0x00004589,0x00004589,0x00004589,0x00004589
+};
+
+uint32_t bias3[8] = {
+    0x00004589,0x00004589,0x00004589,0x00004589,
+    0x00004589,0x00004589,0x00004589,0x00004589
+};
+
+uint32_t bias_test[8] = {
+    0x3f800000, // 1.0 BF16
+    0x40000000, // 2.0 BF16
+    0x40400000, // 3.0 BF16
+    0x40800000, // 4.0 BF16
+    0x40a00000, // 5.0 BF16
+    0x40c00000, // 6.0 BF16
+    0x40e00000, // 7.0 BF16
+    0x41000000  // 8.0 BF16
+};
 // --- [end] ---
 
 extern void mac_zz(void);
@@ -173,6 +204,44 @@ extern void mac_mem_test_v29(uint32_t *ptr);
 extern void mac_mem_test_v30(uint32_t *ptr);
 extern void mac_mem_test_v31(uint32_t *ptr);
 
+
+//macacc
+extern void mac_acc_v0(void);
+extern void mac_acc_v1(void);
+extern void mac_acc_v2(void);
+extern void mac_acc_v3(void);
+extern void mac_acc_v4(void);
+extern void mac_acc_v5(void);
+extern void mac_acc_v6(void);
+extern void mac_acc_v7(void);
+
+extern void mac_acc_v8(void);
+extern void mac_acc_v9(void);
+extern void mac_acc_v10(void);
+extern void mac_acc_v11(void);
+extern void mac_acc_v12(void);
+extern void mac_acc_v13(void);
+extern void mac_acc_v14(void);
+extern void mac_acc_v15(void);
+
+extern void mac_acc_v16(void);
+extern void mac_acc_v17(void);
+extern void mac_acc_v18(void);
+extern void mac_acc_v19(void);
+extern void mac_acc_v20(void);
+extern void mac_acc_v21(void);
+extern void mac_acc_v22(void);
+extern void mac_acc_v23(void);
+
+extern void mac_acc_v24(void);
+extern void mac_acc_v25(void);
+extern void mac_acc_v26(void);
+extern void mac_acc_v27(void);
+extern void mac_acc_v28(void);
+extern void mac_acc_v29(void);
+extern void mac_acc_v30(void);
+extern void mac_acc_v31(void);
+//macacc_end
 
 // scale
 /*
@@ -282,6 +351,9 @@ load_v0(&mat_a[0]);
 load_v1(&mat_a[8]);
 load_v2(&mat_a[16]);
 load_v3(&mat_a[24]);
+
+// Load bias vector into v4
+load_v4(vec);
 //load_v4(&mat_a[32]);
 //load_v5(&mat_a[40]);
 //load_v6(&mat_a[48]);
@@ -295,6 +367,9 @@ mac_as();
 //load_w_scales(weight_scales);
 mac_ws();
 //mac_zz(); //clear tile here
+
+mac_acc_v4(); // added bias
+
 
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end

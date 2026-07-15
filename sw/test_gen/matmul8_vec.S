@@ -56,6 +56,21 @@
        ((vs1) << 7)              | \
        CUSTOM1)
 
+/*
+31        20 19:15 14:12 11:7 6:0
++------------+------+------+------+-------+
+|    0       |  0   |001   | Vs1   |CUST1 |
++------------+------+------+------+-------+
+*/
+
+#define MACACC(vs1) \
+.word (((0 & 0xFFF) << 20) | \
+       (0 << 15)          | \
+       (1 << 12)          | \
+       ((vs1) << 7)       | \
+       CUSTOM1)
+
+
 //MEM_end
 
 // -----------------------------------------------------------------------------
@@ -1322,6 +1337,169 @@ load_w_scales:
     lw  t3, 0(a0) # x28 = w_scale[0]
     lw  t4, 4(a0) # x29 = w_scale[1]
     ret
+
+
+//macacc
+.globl mac_acc_v0
+mac_acc_v0:
+    MACACC(0)
+    ret
+
+.globl mac_acc_v1
+mac_acc_v1:
+    MACACC(1)
+    ret
+
+.globl mac_acc_v2
+mac_acc_v2:
+    MACACC(2)
+    ret
+
+.globl mac_acc_v3
+mac_acc_v3:
+    MACACC(3)
+    ret
+
+.globl mac_acc_v4
+mac_acc_v4:
+    MACACC(4)
+    ret
+
+.globl mac_acc_v5
+mac_acc_v5:
+    MACACC(5)
+    ret
+
+.globl mac_acc_v6
+mac_acc_v6:
+    MACACC(6)
+    ret
+
+.globl mac_acc_v7
+mac_acc_v7:
+    MACACC(7)
+    ret
+
+.globl mac_acc_v8
+mac_acc_v8:
+    MACACC(8)
+    ret
+
+.globl mac_acc_v9
+mac_acc_v9:
+    MACACC(9)
+    ret
+
+.globl mac_acc_v10
+mac_acc_v10:
+    MACACC(10)
+    ret
+
+.globl mac_acc_v11
+mac_acc_v11:
+    MACACC(11)
+    ret
+
+.globl mac_acc_v12
+mac_acc_v12:
+    MACACC(12)
+    ret
+
+.globl mac_acc_v13
+mac_acc_v13:
+    MACACC(13)
+    ret
+
+.globl mac_acc_v14
+mac_acc_v14:
+    MACACC(14)
+    ret
+
+.globl mac_acc_v15
+mac_acc_v15:
+    MACACC(15)
+    ret
+
+.globl mac_acc_v16
+mac_acc_v16:
+    MACACC(16)
+    ret
+
+.globl mac_acc_v17
+mac_acc_v17:
+    MACACC(17)
+    ret
+
+.globl mac_acc_v18
+mac_acc_v18:
+    MACACC(18)
+    ret
+
+.globl mac_acc_v19
+mac_acc_v19:
+    MACACC(19)
+    ret
+
+.globl mac_acc_v20
+mac_acc_v20:
+    MACACC(20)
+    ret
+
+.globl mac_acc_v21
+mac_acc_v21:
+    MACACC(21)
+    ret
+
+.globl mac_acc_v22
+mac_acc_v22:
+    MACACC(22)
+    ret
+
+.globl mac_acc_v23
+mac_acc_v23:
+    MACACC(23)
+    ret
+
+.globl mac_acc_v24
+mac_acc_v24:
+    MACACC(24)
+    ret
+
+.globl mac_acc_v25
+mac_acc_v25:
+    MACACC(25)
+    ret
+
+.globl mac_acc_v26
+mac_acc_v26:
+    MACACC(26)
+    ret
+
+.globl mac_acc_v27
+mac_acc_v27:
+    MACACC(27)
+    ret
+
+.globl mac_acc_v28
+mac_acc_v28:
+    MACACC(28)
+    ret
+
+.globl mac_acc_v29
+mac_acc_v29:
+    MACACC(29)
+    ret
+
+.globl mac_acc_v30
+mac_acc_v30:
+    MACACC(30)
+    ret
+
+.globl mac_acc_v31
+mac_acc_v31:
+    MACACC(31)
+    ret
+//macacc_end
 
 
 /*
