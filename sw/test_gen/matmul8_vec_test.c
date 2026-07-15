@@ -175,6 +175,7 @@ extern void mac_mem_test_v31(uint32_t *ptr);
 
 
 // scale
+/*
 uint32_t act_scales[2] = {
     0x8281807F,
     0x86858483
@@ -184,7 +185,17 @@ uint32_t weight_scales[2] = {
     0x7C7D7E7F,
     0x78797A7B
 };
+*/
 
+uint32_t act_scales[2] = {
+    0x38383838,
+    0x38383838
+};
+
+uint32_t weight_scales[2] = {
+    0x38383838,
+    0x38383838
+};
 
 extern void load_act_scales(const uint32_t *base);
 extern void load_w_scales(const uint32_t *base);
@@ -271,10 +282,10 @@ load_v0(&mat_a[0]);
 load_v1(&mat_a[8]);
 load_v2(&mat_a[16]);
 load_v3(&mat_a[24]);
-load_v4(&mat_a[32]);
-load_v5(&mat_a[40]);
-load_v6(&mat_a[48]);
-load_v7(&mat_a[56]);
+//load_v4(&mat_a[32]);
+//load_v5(&mat_a[40]);
+//load_v6(&mat_a[48]);
+//load_v7(&mat_a[56]);
 
     mac_mem_test_v0((uint32_t *)mat_a);
 
@@ -283,13 +294,13 @@ load_v7(&mat_a[56]);
 mac_as();
 //load_w_scales(weight_scales);
 mac_ws();
-mac_zz(); //clear tile here
+//mac_zz(); //clear tile here
 
 //uint32_t chk = mac_out(4,1,2);
 ////rm_for test scale fsm end
-    mac_mem_test_v4((uint32_t *)mat_a);
-mac_as();
-mac_ws();
+//    mac_mem_test_v4((uint32_t *)mat_a);
+//mac_as();
+//mac_ws();
 
 //v31
 //mac_zz(); //clear tile here
