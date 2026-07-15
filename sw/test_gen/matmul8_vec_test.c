@@ -12,7 +12,7 @@ extern void matmul8_vec(const volatile uint32_t *a,
 //#define BS 8
 #define BS 32
 #define NVREG 32
-#define NVREGG 2 //Number of vector reg groups
+#define NVREGG 1 //Number of vector reg groups
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
@@ -187,14 +187,14 @@ uint32_t weight_scales[2] = {
 };
 */
 
-uint32_t act_scales[2] = {
-    0x38383838,
-    0x38383838
+uint32_t weight_scales[2] = {
+    0x40404040,
+    0x40404040
 };
 
-uint32_t weight_scales[2] = {
-    0x38383838,
-    0x38383838
+uint32_t act_scales[2] = {
+    0x40404040,
+    0x40404040
 };
 
 extern void load_act_scales(const uint32_t *base);
