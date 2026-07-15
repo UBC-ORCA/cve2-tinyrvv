@@ -469,6 +469,57 @@ always_comb begin
 
 end
 
+//more adders here
+
+//------------------------------------------------------------
+// MACACC BF16 bias accumulation path
+//------------------------------------------------------------
+logic [15:0] macacc_lo_sum;
+logic [15:0] macacc_hi_sum;
+
+// Current accumulator values
+logic [15:0] macacc_lo_acc;
+logic [15:0] macacc_hi_acc;
+
+assign macacc_lo_acc =
+        scale_accum_tile[mac_acc_row][mac_acc_col];
+
+assign macacc_hi_acc =
+        scale_accum_tile[mac_acc_row][mac_acc_col + 1'b1];
+
+
+//------------------------------------------------------------
+// Pack the BF16 bias values
+//------------------------------------------------------------
+mx_pkg::bf16_t bias_lo_bf16;
+mx_pkg::bf16_t bias_hi_bf16;
+
+assign {bias_lo_bf16.sign,
+        bias_lo_bf16.exp,
+        bias_lo_bf16.mant} = mac_bias_word[15:0];
+
+assign {bias_hi_bf16.sign,
+        bias_hi_bf16.exp,
+        bias_hi_bf16.mant} = mac_bias_word[31:16];
+
+
+//------------------------------------------------------------
+// BF16 Adders
+//------------------------------------------------------------
+bf16_accumulate u_macacc_lo (
+    .bf16_scaled    (bias_lo_bf16),
+    .accumulator_in (macacc_lo_acc),
+    .accumulator_out(macacc_lo_sum)
+);
+
+
+bf16_accumulate u_macacc_hi (
+    .bf16_scaled    (bias_hi_bf16),
+    .accumulator_in (macacc_hi_acc),
+    .accumulator_out(macacc_hi_sum)
+);
+
+
 //BRAM emulation here
 logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
 
@@ -517,25 +568,121 @@ always_ff @(posedge clk_i or negedge rst_ni) begin
         // MACACC bias accumulation (Runs when scaling pipeline is idle)
         //--------------------------------------------------
         else if (mac_acc_en) begin 
-           // lower 16 bits -> even column
-    		scale_accum_tile[mac_acc_row][mac_acc_col] <= scale_accum_tile[mac_acc_row][mac_acc_col] + mac_bias_word[15:0];
+		// lower BF16
+    		scale_accum_tile[mac_acc_row][mac_acc_col] <= macacc_lo_sum;
 
-    	// upper 16 bits -> odd column
-    		scale_accum_tile[mac_acc_row][mac_acc_col+1'b1] <= scale_accum_tile[mac_acc_row][mac_acc_col+1'b1] + mac_bias_word[31:16];
+    		// upper BF16
+    		scale_accum_tile[mac_acc_row][mac_acc_col+1'b1] <= macacc_hi_sum;
 
-$display("[%0t] [MACACC_WR] row=%0d col=%0d bias_lo=%04h bias_hi=%04h old_lo=%04h old_hi=%04h",
-             $time,
-             mac_acc_row,
-             mac_acc_col,
-             mac_bias_word[15:0],
-             mac_bias_word[31:16],
-             scale_accum_tile[mac_acc_row][mac_acc_col],
-             scale_accum_tile[mac_acc_row][mac_acc_col+1]);
+
+$display(
+    "[%0t] [MACACC_WR] row=%0d col=%0d bias_lo=%04h bias_hi=%04h old_lo=%04h old_hi=%04h new_lo=%04h new_hi=%04h",
+    $time,
+    mac_acc_row,
+    mac_acc_col,
+    mac_bias_word[15:0],
+    mac_bias_word[31:16],
+    scale_accum_tile[mac_acc_row][mac_acc_col],
+    scale_accum_tile[mac_acc_row][mac_acc_col+1'b1],
+    macacc_lo_sum,
+    macacc_hi_sum
+);
 
         end
     end
 end
 //to_RM_end
+
+//BF16
+always_ff @(posedge clk_i) begin
+    if(mac_acc_en) begin
+
+        $display("");
+        $display("------------ MACACC INPUTS ------------");
+
+        $display("row=%0d col=%0d",
+            mac_acc_row,
+            mac_acc_col);
+
+        $display("bias_word=%08h",
+            mac_bias_word);
+
+        $display("bias_lo=%04h",
+            mac_bias_word[15:0]);
+
+        $display("bias_hi=%04h",
+            mac_bias_word[31:16]);
+
+        $display("acc_lo=%04h",
+            macacc_lo_acc);
+
+        $display("acc_hi=%04h",
+            macacc_hi_acc);
+
+        $display("sum_lo=%04h",
+            macacc_lo_sum);
+
+        $display("sum_hi=%04h",
+            macacc_hi_sum);
+
+
+        $display("bias_lo:");
+        $display(" sign=%0d exp=%02h mant=%02h",
+            bias_lo_bf16.sign,
+            bias_lo_bf16.exp,
+            bias_lo_bf16.mant);
+
+
+        $display("bias_hi:");
+        $display(" sign=%0d exp=%02h mant=%02h",
+            bias_hi_bf16.sign,
+            bias_hi_bf16.exp,
+            bias_hi_bf16.mant);
+
+
+        $display("---------------------------------------");
+        $display("");
+
+    end
+end
+
+logic macacc_en_q;
+logic [2:0] macacc_row_q;
+logic [2:0] macacc_col_q;
+
+always_ff @(posedge clk_i) begin
+
+    macacc_en_q<=mac_acc_en;
+    macacc_row_q<=mac_acc_row;
+    macacc_col_q<=mac_acc_col;
+
+end
+
+
+always_ff @(posedge clk_i) begin
+
+    if(macacc_en_q) begin
+
+        $display("");
+        $display("------------ MACACC WRITEBACK ----------");
+
+        $display("row=%0d col=%0d",
+            macacc_row_q,
+            macacc_col_q);
+
+        $display("LO=%04h",
+            scale_accum_tile[macacc_row_q][macacc_col_q]);
+
+        $display("HI=%04h",
+            scale_accum_tile[macacc_row_q][macacc_col_q+1]);
+
+        $display("----------------------------------------");
+        $display("");
+
+    end
+
+end
+//BF16_end
 
 // --- [stev] ---
 always_ff @(posedge clk_i) begin
