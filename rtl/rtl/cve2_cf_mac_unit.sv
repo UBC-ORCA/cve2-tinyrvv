@@ -135,6 +135,10 @@ module cve2_cf_mac_unit
         end
     end
 
+    // Frozen target bank for the in-flight fold (latched when the fold starts),
+    // so a later accBank cannot redirect this fold's tail writes.
+    logic [4:0] scale_tile_q;
+
     // Scaler Private Isolated Context Latching
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -143,12 +147,14 @@ module cve2_cf_mac_unit
             scale_weight_lo_q     <= '0;
             scale_weight_hi_q     <= '0;
             scale_tile_snapshot_q <= '{default: '{default: '0}};
+            scale_tile_q          <= 5'b0;
         end else if (context_accept) begin
             scale_act_lo_q        <= ctx_act_scale_lo;
             scale_act_hi_q        <= ctx_act_scale_hi;
             scale_weight_lo_q     <= ctx_weight_scale_lo;
             scale_weight_hi_q     <= ctx_weight_scale_hi;
             scale_tile_snapshot_q <= ctx_tile_snapshot;
+            scale_tile_q          <= current_tile_q;   // freeze the bank for this fold
         end
     end
 
@@ -182,15 +188,27 @@ module cve2_cf_mac_unit
     logic [15:0] scale_accum_in  [0:1];
     logic [15:0] scale_accum_out [0:1];
 
+    // Current accumulator tile/bank selected by accBank(T). Persists until the
+    // next accBank. NOTE: this can change while a previous fold is still draining,
+    // so the fold uses the FROZEN copy scale_tile_q (latched at context_accept),
+    // not current_tile_q directly.
+    logic [4:0] current_tile_q;
+    always_ff @(posedge clk_i) begin
+        if (!rst_ni)
+            current_tile_q <= 5'b0;
+        else if (req_valid_i && req_ready_o && (cf_req_op_i == cve2_pkg::OP_ACC_BANK))
+            current_tile_q <= req_rs1_i[4:0];
+    end
+
     always_comb begin
         if (scale_busy) begin
             bram_rd_en   = 1'b1;
-            bram_rd_tile = 5'b0; 
-            bram_rd_row  = {scale_row_group, 1'b0}; 
+            bram_rd_tile = scale_tile_q;
+            bram_rd_row  = {scale_row_group, 1'b0};
             bram_rd_col  = scale_col;
 
             bram_wr_en   = scale_write;
-            bram_wr_tile = 5'b0;
+            bram_wr_tile = scale_tile_q;
             bram_wr_row  = {scale_row_group, 1'b0};
             bram_wr_col  = scale_col;
             bram_wr_data = {scale_accum_out[1], scale_accum_out[0]};

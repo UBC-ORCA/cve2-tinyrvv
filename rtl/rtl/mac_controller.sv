@@ -239,7 +239,8 @@ module mac_controller #(
                     (op_q == cve2_pkg::OP_MV2)    ||
                     (op_q == cve2_pkg::OP_MAC_AS) ||
                     (op_q == cve2_pkg::OP_MAC_WS) ||
-                    (op_q == cve2_pkg::OP_MAC_BIAS)) begin // Finishes execution in one cycle
+                    (op_q == cve2_pkg::OP_MAC_BIAS) ||
+                    (op_q == cve2_pkg::OP_ACC_BANK)) begin // Finishes execution in one cycle
                     state_d = DONE;
                 end 
                 else if (op_q == cve2_pkg::OP_VMAC) begin
