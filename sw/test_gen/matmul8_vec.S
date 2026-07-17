@@ -1364,11 +1364,13 @@ mac_ws:
 MACBIAS
 --------
 
-rs1
-31            16 15      8 7      3 2      0
-------------------------------------------------
-|   unused      | tile |  row |    column     |
-------------------------------------------------
+rs1[10:0]
+
+31             11 10       6 5     3 2     0
++----------------+----------+-------+-------+
+|    unused      |  tile    |  row  |  col  |
++----------------+----------+-------+-------+
+                  5 bits    3 bits  3 bits
 
 rs2
 31                          16 15              0
@@ -1384,6 +1386,12 @@ instruction format
 +------------+-----------+-----------+-------+-----------+--------+
 | funct7=0C  |   rs2     |   rs1     | 000   |     0     |CUSTOM2 |
 +------------+-----------+-----------+-------+-----------+--------+
+
+ assign bias_col   = rs1_i[2:0];
+    assign bias_row   = rs1_i[5:3];
+    assign bias_tile  = rs1_i[10:6];
+    assign bias_value = rs2_i[15:0];
+
 */
 
 #define MACBIAS(rs1, rs2) \
@@ -1410,40 +1418,39 @@ instruction format
 mac_bias:
 
     #
-    # pack rs1
+    # rs1 payload:
     #
-    # [15:8] = tile
-    # [7:3]  = row
-    # [2:0]  = column
+    # [10:6] = tile (5 bits)
+    # [5:3]  = row  (3 bits)
+    # [2:0]  = col  (3 bits)
     #
 
-    slli    t1,a0,8          # tile<<8
-    slli    t2,a1,3          # row<<3
+    slli    t1, a0, 6       # tile << 6
+    slli    t2, a1, 3       # row << 3
 
-    or      t1,t1,t2
-    or      t1,t1,a2         # rs1 payload complete
-
+    or      t1, t1, t2      # add row
+    or      t1, t1, a2      # add column
 
     #
-    # pack rs2
+    # rs2 payload:
     #
     # [15:0] = BF16 value
     #
 
-    mv      t2,a3
+    mv      t2, a3
 
 
     #
-    # issue instruction
+    # x6 = rs1 payload
+    # x7 = rs2 payload
     #
-    # rs1 -> x6
-    # rs2 -> x7
-    #
+
+    mv      x6, t1
+    mv      x7, t2
 
     MACBIAS(6,7)
 
     ret
-
 //[end]
 
 
