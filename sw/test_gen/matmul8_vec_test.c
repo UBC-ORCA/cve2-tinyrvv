@@ -181,7 +181,7 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   load_act_scales(act_scales);
   load_w_scales(weight_scales);
 
-mac_bias(0,0,0,0x3f80);
+  mac_bias(1,0,0,0x00aa);   // distinctive value to trace how the scale-fold reads propagate it
 
 
   // ==========================================
@@ -206,11 +206,11 @@ mac_bias(0,0,0,0x3f80);
   chk = mac_out(0, 0, 2);
 
 //BRAM write check
-//mac_bias(0,0,0,0x3f80);
-//mac_bias(0,0,1,0x4000);
-///mac_bias(0,7,7,0x4120);
-//mac_bias(1,0,0,0x4040);
-//mac_bias(31,7,7,0x3fc0);
+  // mac_bias(0,0,0,0x3f80);   // tile0 row0 col0 (even row)
+  // mac_bias(0,0,1,0x4000);   // tile0 row0 col1 (neighbor col - must not clobber col0)
+  // mac_bias(0,7,7,0x4120);   // tile0 row7 col7 (ODD row - must not assert or spill to tile1)
+  // mac_bias(1,0,0,0x4040);   // tile1 row0 col0 (must stay clean)
+  // mac_bias(31,7,7,0x3fc0);  // tile31 row7 col7 (ODD row, last tile - must not spill past)
 
   // ==========================================
   // BRING-UP TEST 3: Register v31 Boundary Verification

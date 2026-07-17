@@ -24,7 +24,8 @@ module mac_accum_bram (
     input  logic [4:0]  wr_tile_i,
     input  logic [2:0]  wr_row_i,
     input  logic [2:0]  wr_col_i,
-    input  logic [31:0] wr_data_i  // Patched to 32-bit width for balanced tracking
+    input  logic [31:0] wr_data_i, // Patched to 32-bit width for balanced tracking
+    input  logic        wr_pair_i  // 1 = paired write (scale), 0 = single-cell (bias)
 );
 
     // Architectural Dimension Parameters
@@ -83,14 +84,20 @@ module mac_accum_bram (
     //----------------------------------
     always_ff @(posedge clk_i) begin
         if (wr_en_i) begin
-            assert(wr_row_i[0] == 1'b0) else
-                $error("[BRAM_ACCUM_ERROR] Write row must be even for paired layout, got %0d", wr_row_i);
+            if (wr_pair_i) begin
+                // paired write: row n from [15:0], row n+1 from [31:16] (scale fold)
+                assert(wr_row_i[0] == 1'b0) else
+                    $error("[BRAM_ACCUM_ERROR] Paired write row must be even, got %0d", wr_row_i);
 
-            // row n
-            accum_mem[wr_addr_flat] <= wr_data_i[15:0];
+                // row n
+                accum_mem[wr_addr_flat] <= wr_data_i[15:0];
 
-            // row n + 1
-            accum_mem[(ADDR_W'(wr_tile_i) << 6) + (ADDR_W'(wr_row_i + 1'b1) << 3) + ADDR_W'(wr_col_i)] <= wr_data_i[31:16];
+                // row n + 1
+                accum_mem[(ADDR_W'(wr_tile_i) << 6) + (ADDR_W'(wr_row_i + 1'b1) << 3) + ADDR_W'(wr_col_i)] <= wr_data_i[31:16];
+            end else begin
+                // single-cell write: only the addressed (tile,row,col), any row (bias)
+                accum_mem[wr_addr_flat] <= wr_data_i[15:0];
+            end
         end
     end
 

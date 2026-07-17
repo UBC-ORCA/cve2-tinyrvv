@@ -165,7 +165,8 @@ module cve2_cf_mac_unit
     logic [4:0]  bram_wr_tile;
     logic [2:0]  bram_wr_row;
     logic [2:0]  bram_wr_col;
-    logic [31:0] bram_wr_data; 
+    logic [31:0] bram_wr_data;
+    logic        bram_wr_pair;   // 1 = paired (scale) write, 0 = single-cell (bias) write
 
     logic        ctrl_accum_rd_en;
     logic [4:0]  ctrl_accum_rd_tile;
@@ -190,9 +191,10 @@ module cve2_cf_mac_unit
 
             bram_wr_en   = scale_write;
             bram_wr_tile = 5'b0;
-            bram_wr_row  = {scale_row_group, 1'b0}; 
+            bram_wr_row  = {scale_row_group, 1'b0};
             bram_wr_col  = scale_col;
-            bram_wr_data = {scale_accum_out[1], scale_accum_out[0]}; 
+            bram_wr_data = {scale_accum_out[1], scale_accum_out[0]};
+            bram_wr_pair = 1'b1;   // scale fold writes a row pair
         end else begin
             bram_rd_en   = ctrl_accum_rd_en;
             bram_rd_tile = ctrl_accum_rd_tile;
@@ -203,7 +205,8 @@ module cve2_cf_mac_unit
             bram_wr_tile = ctrl_accum_wr_tile;
             bram_wr_row  = ctrl_accum_wr_row;
             bram_wr_col  = ctrl_accum_wr_col;
-            bram_wr_data = {16'b0, ctrl_accum_wr_data}; 
+            bram_wr_data = {16'b0, ctrl_accum_wr_data};
+            bram_wr_pair = 1'b0;   // bias writes a single cell (any row)
         end
     end
 
@@ -320,7 +323,8 @@ module cve2_cf_mac_unit
         .wr_tile_i            (bram_wr_tile),
         .wr_row_i             (bram_wr_row),
         .wr_col_i             (bram_wr_col),
-        .wr_data_i            (bram_wr_data)
+        .wr_data_i            (bram_wr_data),
+        .wr_pair_i            (bram_wr_pair)
     );
 
     assign mv_data = {

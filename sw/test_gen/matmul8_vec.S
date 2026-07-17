@@ -1425,11 +1425,14 @@ mac_bias:
     # [2:0]  = col  (3 bits)
     #
 
-    slli    t1, a0, 6       # tile << 6
-    slli    t2, a1, 3       # row << 3
+    # Use t5/t6 as scratch so t1-t4 (the caller's act/weight scales,
+    # loaded by load_act_scales/load_w_scales and consumed by mac_as/mac_ws)
+    # are preserved across a mac_bias call.
+    slli    t5, a0, 6       # tile << 6
+    slli    t6, a1, 3       # row << 3
 
-    or      t1, t1, t2      # add row
-    or      t1, t1, a2      # add column
+    or      t5, t5, t6      # add row
+    or      t5, t5, a2      # add column
 
     #
     # rs2 payload:
@@ -1437,18 +1440,15 @@ mac_bias:
     # [15:0] = BF16 value
     #
 
-    mv      t2, a3
+    mv      t6, a3
 
 
     #
-    # x6 = rs1 payload
-    # x7 = rs2 payload
+    # x30 = t5 = rs1 payload
+    # x31 = t6 = rs2 payload
     #
 
-    mv      x6, t1
-    mv      x7, t2
-
-    MACBIAS(6,7)
+    MACBIAS(30,31)
 
     ret
 //[end]
