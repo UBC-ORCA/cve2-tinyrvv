@@ -133,7 +133,10 @@ extern void mac_as(void);
 extern void mac_ws(void);
 
 // Mode: 0 = even, 1 = odd, 2 = pair
-uint32_t mac_out(uint32_t row, uint32_t pair, uint32_t mode);
+extern uint32_t mac_out(uint32_t row, uint32_t pair, uint32_t mode);
+
+//BRAM
+extern void mac_bias(uint8_t tile, uint8_t row, uint8_t column, uint16_t bf16);
 
 int main(void)
 {
@@ -199,6 +202,12 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   mac_ws();
   chk = mac_out(0, 0, 2);
 
+//BRAM write check
+mac_bias(0,0,0,0x3f80);
+mac_bias(0,0,1,0x4000);
+mac_bias(0,7,7,0x4120);
+mac_bias(1,0,0,0x4040);
+mac_bias(31,7,7,0x3fc0);
 
   // ==========================================
   // BRING-UP TEST 3: Register v31 Boundary Verification

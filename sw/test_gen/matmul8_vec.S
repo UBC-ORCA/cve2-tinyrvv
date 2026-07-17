@@ -1359,6 +1359,91 @@ mac_ws:
     MAC_WS(28,29)
     ret
 
+// write bram
+/*
+MACBIAS
+--------
+
+rs1
+31            16 15      8 7      3 2      0
+------------------------------------------------
+|   unused      | tile |  row |    column     |
+------------------------------------------------
+
+rs2
+31                          16 15              0
+------------------------------------------------
+|            unused           |    BF16 value   |
+------------------------------------------------
+
+
+instruction format
+-----------------
+
+31        25 24       20 19       15 14:12 11       7 6      0
++------------+-----------+-----------+-------+-----------+--------+
+| funct7=0C  |   rs2     |   rs1     | 000   |     0     |CUSTOM2 |
++------------+-----------+-----------+-------+-----------+--------+
+*/
+
+#define MACBIAS(rs1, rs2) \
+.word (((0x0C & 0x7F) << 25) | \
+       (((rs2) & 0x1F) << 20) | \
+       (((rs1) & 0x1F) << 15) | \
+       (0 << 12)              | \
+       (0 << 7)               | \
+       CUSTOM2)
+
+
+#
+# a0 = tile
+# a1 = row
+# a2 = column
+# a3 = BF16 value
+#
+# uses:
+#   x6 = rs1 payload
+#   x7 = rs2 payload
+#
+
+.globl mac_bias
+mac_bias:
+
+    #
+    # pack rs1
+    #
+    # [15:8] = tile
+    # [7:3]  = row
+    # [2:0]  = column
+    #
+
+    slli    t1,a0,8          # tile<<8
+    slli    t2,a1,3          # row<<3
+
+    or      t1,t1,t2
+    or      t1,t1,a2         # rs1 payload complete
+
+
+    #
+    # pack rs2
+    #
+    # [15:0] = BF16 value
+    #
+
+    mv      t2,a3
+
+
+    #
+    # issue instruction
+    #
+    # rs1 -> x6
+    # rs2 -> x7
+    #
+
+    MACBIAS(6,7)
+
+    ret
+
 //[end]
 
 

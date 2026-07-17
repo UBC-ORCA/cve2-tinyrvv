@@ -76,16 +76,16 @@ module cve2_cf_mac_unit
     // Scale Processing Datapath Interconnect Intermediates
     //------------------------------------------------------------
     logic [2:0] scale_col;
-    logic [1:0] scale_row_group; // Patch 2: Updated FSM connection name replacement
+    logic [1:0] scale_row_group; 
 
     // Selected tile values feeding scale units
-    logic signed [15:0] scale_tile_value [0:1]; // Patch 1: Changed to 2 units
+    logic signed [15:0] scale_tile_value [0:1]; 
 
     // Direct real-time pulse triggers out from controller
     logic [31:0]        act_scale_lo, act_scale_hi;
     logic [31:0]        weight_scale_lo, weight_scale_hi;
-    logic               act_scale_ready, weight_scale_ready;
-    logic               snapshot_valid;
+    logic                act_scale_ready, weight_scale_ready;
+    logic                snapshot_valid;
 
     // Global matrix snapshot configurations
     logic signed [15:0] tile_snapshot [0:TT-1][0:TT-1];
@@ -93,9 +93,9 @@ module cve2_cf_mac_unit
     //------------------------------------------------------------
     // WRAPPER PERSISTENT CONTEXT STORAGE AND STATE TRACKING
     //------------------------------------------------------------
-    logic               snapshot_valid_q;
-    logic               act_scale_valid_q;
-    logic               weight_scale_valid_q;
+    logic                snapshot_valid_q;
+    logic                act_scale_valid_q;
+    logic                weight_scale_valid_q;
 
     logic [31:0]        ctx_act_scale_lo;
     logic [31:0]        ctx_act_scale_hi;
@@ -103,10 +103,10 @@ module cve2_cf_mac_unit
     logic [31:0]        ctx_weight_scale_hi;
     logic signed [15:0] ctx_tile_snapshot [0:TT-1][0:TT-1];
 
-    logic               context_ready;
-    logic               context_accept;
-    logic               scale_busy;
-    logic               scale_done;
+    logic                context_ready;
+    logic                context_accept;
+    logic                scale_busy;
+    logic                scale_done;
 
     // Assemble persistent context assembly status
     assign context_ready = snapshot_valid_q && act_scale_valid_q && weight_scale_valid_q;
@@ -127,7 +127,6 @@ module cve2_cf_mac_unit
                 end
             end
         end else begin
-            // 1. Capture incoming real-time pulses from sequencing controller
             if (snapshot_valid && !scale_busy) begin
                 snapshot_valid_q  <= 1'b1;
                 ctx_tile_snapshot <= tile_snapshot;
@@ -145,12 +144,66 @@ module cve2_cf_mac_unit
                 ctx_weight_scale_hi  <= weight_scale_hi;
             end
 
-            // 2. Clear out state flags simultaneously when the Scale processing engine consumes them
             if (context_accept) begin
                 snapshot_valid_q     <= 1'b0;
                 act_scale_valid_q    <= 1'b0;
                 weight_scale_valid_q <= 1'b0;
             end
+        end
+    end
+
+    //------------------------------------------------------------
+    // Accumulator Block RAM Interconnect Signals
+    //------------------------------------------------------------
+    logic        bram_rd_en;
+    logic [4:0]  bram_rd_tile;
+    logic [2:0]  bram_rd_row;
+    logic [2:0]  bram_rd_col;
+    logic [15:0] bram_rd_data;
+
+    logic        bram_wr_en;
+    logic [4:0]  bram_wr_tile;
+    logic [2:0]  bram_wr_row;
+    logic [2:0]  bram_wr_col;
+    logic [15:0] bram_wr_data;
+
+    // Arbiter multiplexing between hardware sequencing FSM and system BIAS requests
+    logic        ctrl_accum_rd_en;
+    logic [4:0]  ctrl_accum_rd_tile;
+    logic [2:0]  ctrl_accum_rd_row;
+    logic [2:0]  ctrl_accum_rd_col;
+
+    logic        ctrl_accum_wr_en;
+    logic [4:0]  ctrl_accum_wr_tile;
+    logic [2:0]  ctrl_accum_wr_row;
+    logic [2:0]  ctrl_accum_wr_col;
+    logic [15:0] ctrl_accum_wr_data;
+
+    always_comb begin
+        if (scale_busy) begin
+            // FSM Port mapping priorities for internal post-scale collection passes
+            bram_rd_en   = 1'b1;
+            bram_rd_tile = 5'b0; // Default active computational cluster target
+            bram_rd_row  = scale_row_group; // Port 0 uses lower base offsets
+            bram_rd_col  = scale_col;
+
+            bram_wr_en   = 1'b1;
+            bram_wr_tile = 5'b0;
+            bram_wr_row  = scale_row_group;
+            bram_wr_col  = scale_col;
+            bram_wr_data = scale_accum_out[0];
+        end else begin
+            // Relinquish control authority to master controller pipeline operations (e.g. OP_MAC_BIAS)
+            bram_rd_en   = ctrl_accum_rd_en;
+            bram_rd_tile = ctrl_accum_rd_tile;
+            bram_rd_row  = ctrl_accum_rd_row;
+            bram_rd_col  = ctrl_accum_rd_col;
+
+            bram_wr_en   = ctrl_accum_wr_en;
+            bram_wr_tile = ctrl_accum_wr_tile;
+            bram_wr_row  = ctrl_accum_wr_row;
+            bram_wr_col  = ctrl_accum_wr_col;
+            bram_wr_data = ctrl_accum_wr_data;
         end
     end
 
@@ -162,7 +215,6 @@ module cve2_cf_mac_unit
     logic [3:0]  act_vector [0:TT-1];
     logic [3:0]  weight_vector [0:TT-1];
     
-    // Internal interconnect mapping
     logic        mem_req;
     logic [31:0] mem_addr;
     logic        mem_we;
@@ -188,7 +240,7 @@ module cve2_cf_mac_unit
         .mac_en_o             (mac_en),
         .clear_o              (clear),
         .vs1_i                (vs1),
-        .weight_blk_i         (5'b0), // Unused parameter structural tie-off
+        .weight_blk_i         (5'b0),
         .base_i               (weight_addr),
         .mac_vrf_raddr_o      (mac_vrf_raddr_o),
         .mac_vrf_relem_o      (mac_vrf_relem_o),
@@ -225,7 +277,19 @@ module cve2_cf_mac_unit
         .scale_done_i         (scale_done),
         .req_ready_o          (req_ready_o),
         .busy_o               (busy_o),
-        .done_o               (done_o)
+        .done_o               (done_o),
+        
+        // Structured BRAM hardware mapping connections
+        .accum_rd_en_o        (ctrl_accum_rd_en),
+        .accum_rd_tile_o      (ctrl_accum_rd_tile),
+        .accum_rd_row_o       (ctrl_accum_rd_row),
+        .accum_rd_col_o       (ctrl_accum_rd_col),
+        .accum_rd_data_i      (bram_rd_data),
+        .accum_wr_en_o        (ctrl_accum_wr_en),
+        .accum_wr_tile_o      (ctrl_accum_wr_tile),
+        .accum_wr_row_o       (ctrl_accum_wr_row),
+        .accum_wr_col_o       (ctrl_accum_wr_col),
+        .accum_wr_data_o      (ctrl_accum_wr_data)
     );
 
     mac_array #(
@@ -245,11 +309,27 @@ module cve2_cf_mac_unit
         .mv_row_idx_i         (mv_row_idx)
     );
 
-    // TEMP CONVERT FOR MV2
+    // Structural coordinates addressable physical storage instance
+    mac_accum_bram u_accum_bram (
+        .clk_i                (clk_i),
+        .rst_ni               (rst_ni),
+        .rd_en_i              (bram_rd_en),
+        .rd_tile_i            (bram_rd_tile),
+        .rd_row_i             (bram_rd_row),
+        .rd_col_i             (bram_rd_col),
+        .rd_data_o            (bram_rd_data),
+        .wr_en_i              (bram_wr_en),
+        .wr_tile_i            (bram_wr_tile),
+        .wr_row_i             (bram_wr_row),
+        .wr_col_i             (bram_wr_col),
+        .wr_data_i            (bram_wr_data)
+    );
+
+    // Structural extraction mapping assignments for cross-lane moves
     assign mv_data =
             {
-                scale_accum_tile [mv_row_idx][mv_odd_col_idx],
-                scale_accum_tile [mv_row_idx][mv_even_col_idx]
+                tile_snapshot[mv_row_idx][mv_odd_col_idx],
+                tile_snapshot[mv_row_idx][mv_even_col_idx]
             };
 
     mac_scale_fsm #(
@@ -267,35 +347,25 @@ module cve2_cf_mac_unit
         .scale_busy_o         (scale_busy),
         .scale_done_o         (scale_done),
         .scale_col_o          (scale_col),
-        .scale_row_group_o    (scale_row_group) // Patch 2: Updated connection
+        .scale_row_group_o    (scale_row_group) 
     );
 
     //------------------------------------------------------------
-    // SCALE TILE SELECTION (Patch 3)
-    //
-    // Two scale units process one column at a time.
-    // Scale unit 0 processes rows 0-3.
-    // Scale unit 1 processes rows 4-7.
+    // SCALE TILE SELECTION
     //------------------------------------------------------------
     always_comb begin
-        // Scale unit 0: rows 0-3
-        scale_tile_value[0] =
-            tile_snapshot[scale_row_group][scale_col];
-
-        // Scale unit 1: rows 4-7
-        scale_tile_value[1] =
-            tile_snapshot[scale_row_group + 2'd4][scale_col];
+        scale_tile_value[0] = tile_snapshot[scale_row_group][scale_col];
+        scale_tile_value[1] = tile_snapshot[scale_row_group + 2'd4][scale_col];
     end
 
     //------------------------------------------------------------
-    // Processing Datapath Structures (Patch 1)
+    // Processing Datapath Structures
     //------------------------------------------------------------
     logic [15:0] scale_accum_in  [0:1];
     logic [15:0] scale_accum_out [0:1];
     logic [7:0]  scaleA          [0:1];
     logic [7:0]  scaleB          [0:1];
 
-    // Patch 4: Instantiating only two scale accumulators
     mac_scale_accum u_scale_accum0 (
         .tile_value(scale_tile_value[0]),
         .scaleA(scaleA[0]),
@@ -313,9 +383,7 @@ module cve2_cf_mac_unit
     );
 
     always_comb begin
-        //------------------------------------------
-        // Activation scales (Patch 5)
-        //------------------------------------------
+        // Activation scales
         if (scale_row_group == 0) begin
             scaleA[0] = ctx_act_scale_lo[7:0];
             scaleA[1] = ctx_act_scale_lo[23:16];
@@ -333,9 +401,7 @@ module cve2_cf_mac_unit
             scaleA[1] = ctx_act_scale_hi[31:24];
         end
 
-        //------------------------------------------
-        // Weight scales (Patch 6)
-        //------------------------------------------
+        // Weight scales
         if (scale_col < 4) begin
             scaleB[0] = ctx_weight_scale_lo[scale_col*8 +: 8];
             scaleB[1] = ctx_weight_scale_lo[scale_col*8 +: 8];
@@ -346,252 +412,62 @@ module cve2_cf_mac_unit
         end
     end
 
-    //------------------------------------------------------------
-    // Read two accumulator cells
-    //------------------------------------------------------------
+    // Connect structural data pipelines from physical storage ports 
     always_comb begin
-        scale_accum_in[0] = scale_accum_tile[scale_row_group][scale_col];
-        scale_accum_in[1] = scale_accum_tile[scale_row_group + 4][scale_col];
+        scale_accum_in[0] = bram_rd_data;
+        scale_accum_in[1] = 16'h0000; // Standby structure tie-off
     end
-
-    // BRAM emulation here
-    logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
 
     //------------------------------------------------------------
-    // Software BRAM model
-    // 8x8 accumulator tile
+    // Simulation Debug Dumps
     //------------------------------------------------------------
-    integer r, c;
-
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            for (r=0; r<TT; r++) begin
-                for (c=0; c<TT; c++) begin
-                    scale_accum_tile[r][c] <= 16'h0000;
-                end
-            end
-        end
-        else begin
-            // Patch 7: BRAM Update logic
-            if (scale_busy) begin
-                scale_accum_tile[scale_row_group][scale_col]     <= scale_accum_out[0];
-                scale_accum_tile[scale_row_group + 4][scale_col] <= scale_accum_out[1];
-            end
-        end
-    end
-
-    // ------------------------------------------------------------
-    // Scale Accumulator Tile Dump (Updated for 2 scale units)
-    // ------------------------------------------------------------
     always_ff @(posedge clk_i) begin
         if (rst_ni) begin
-
-            $display("");
-            $display("======================================================");
-            $display("[%0t] SCALE ACCUMULATOR", $time);
-            $display("======================================================");
-
-            $display("FSM:");
-            $display("  row_group=%0d col=%0d busy=%0b done=%0b",
-                     scale_row_group,
-                     scale_col,
-                     scale_busy,
-                     scale_done);
-
-            $display("");
-
-            $display("Selected MAC Tile:");
-            $display("  tile = {%0d, %0d}",
-                     scale_tile_value[0],
-                     scale_tile_value[1]);
-
-            $display("");
-
-            $display("Scale Factors:");
-            $display("  A = {%02x,%02x}",
-                     scaleA[0],
-                     scaleA[1]);
-
-            $display("  B = {%02x,%02x}",
-                     scaleB[0],
-                     scaleB[1]);
-
-            $display("");
-
-            $display("Accumulator:");
-            $display("  IN  = {%04h,%04h}",
-                     scale_accum_in[0],
-                     scale_accum_in[1]);
-
-            $display("  OUT = {%04h,%04h}",
-                     scale_accum_out[0],
-                     scale_accum_out[1]);
-
-            $display("");
-
-            $display("Accumulated BF16 Tile:");
-
-            for (int r = 0; r < TT; r++) begin
-                $write("Row %0d :", r);
-                for (int c = 0; c < TT; c++) begin
-                    $write(" %04h", scale_accum_tile[r][c]);
-                end
-                $write("\n");
+            // 1. Log New Incoming Execution Requests
+            if (req_valid_i && req_ready_o) begin
+                $display("[CVE2_MAC_DEBUG] [%0t ns] --- NEW INSTRUCTION EXECUTING ---", $time);
+                $display("[CVE2_MAC_DEBUG] Opcode Type: %s | Instr: 32'h%h", cf_req_op_i.name(), req_instr_i);
+                $display("[CVE2_MAC_DEBUG] RS1 (Weight Base): 32'h%h | RS2: 32'h%h", req_rs1_i, req_rs2_i);
+                $display("[CVE2_MAC_DEBUG] Target Weight Linear Memory Addr: 32'h%h", weight_addr);
             end
 
-            $display("======================================================");
-            $display("");
-
-        end
-    end
-
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [SCALE] row_group=%0b col=%0d rows={%0d,%0d} tile={%0d,%0d} acc_in={%04h,%04h} acc_out={%04h,%04h}",
-                     $time,
-                     scale_row_group,
-                     scale_col,
-                     scale_row_group,
-                     (scale_row_group + 4),
-                     scale_tile_value[0],
-                     scale_tile_value[1],
-                     scale_accum_in[0],
-                     scale_accum_in[1],
-                     scale_accum_out[0],
-                     scale_accum_out[1]);
-        end
-    end
-
-    // ------------------------------------------------------------
-    // Scale Context Debug Dump
-    // ------------------------------------------------------------
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [SCALE_CTX] act_lo=%08x act_hi=%08x wt_lo=%08x wt_hi=%08x",
-                     $time,
-                     ctx_act_scale_lo,
-                     ctx_act_scale_hi,
-                     ctx_weight_scale_lo,
-                     ctx_weight_scale_hi);
-
-            $display("[%0t] [SCALE_CTX] ACT scales = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
-                     $time,
-                     ctx_act_scale_lo[7:0],
-                     ctx_act_scale_lo[15:8],
-                     ctx_act_scale_lo[23:16],
-                     ctx_act_scale_lo[31:24],
-                     ctx_act_scale_hi[7:0],
-                     ctx_act_scale_hi[15:8],
-                     ctx_act_scale_hi[23:16],
-                     ctx_act_scale_hi[31:24]);
-
-            $display("[%0t] [SCALE_CTX] WT scales  = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
-                     $time,
-                     ctx_weight_scale_lo[7:0],
-                     ctx_weight_scale_lo[15:8],
-                     ctx_weight_scale_lo[23:16],
-                     ctx_weight_scale_lo[31:24],
-                     ctx_weight_scale_hi[7:0],
-                     ctx_weight_scale_hi[15:8],
-                     ctx_weight_scale_hi[23:16],
-                     ctx_weight_scale_hi[31:24]);
-
-            $display("[%0t] [SCALE_SEL] row_group=%0b col=%0d | scaleA={%02x,%02x} scaleB={%02x,%02x}",
-                     $time,
-                     scale_row_group,
-                     scale_col,
-                     scaleA[0],
-                     scaleA[1],
-                     scaleB[0],
-                     scaleB[1]);
-        end
-    end
-
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [MAC_VRF] raddr=v%0d relem=%0d rdata=%08x mac_en=%0b busy=%0b done=%0b",
-                     $time,
-                     mac_vrf_raddr_o,
-                     mac_vrf_relem_o,
-                     mac_vrf_rdata_i,
-                     mac_en,
-                     busy_o,
-                     done_o);
-        end
-    end
-
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [MAC_MEM] req=%0b gnt=%0b addr=%08x we=%0b be=%0h wdata=%08x rvalid=%0b rdata=%08x err=%0b busy=%0b done=%0b mac_en=%0b",
-                     $time,
-                     data_req_o,
-                     data_gnt_i,
-                     data_addr_o,
-                     data_we_o,
-                     data_be_o,
-                     data_wdata_o,
-                     data_rvalid_i,
-                     data_rdata_i,
-                     data_err_i,
-                     busy_o,
-                     done_o,
-                     mac_en);
-        end
-    end
-
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [MAC_MV] op=%0d mv_en=%0b mode=%0d row=%0d even_col=%0d odd_col=%0d",
-                     $time,
-                     cf_req_op_i,
-                     mv_en,
-                     mv_mode,
-                     mv_row_idx,
-                     mv_even_col_idx,
-                     mv_odd_col_idx);
-
+            // 2. Log Scalar Moves out of the Matrix Array
             if (mv_en) begin
-                $display("[%0t] [MAC_MV] DATA_OUT=%08x scalar_we=%0b scalar_waddr=x%0d",
-                         $time,
-                         mv_data,
-                         scalar_we_o,
-                         scalar_waddr_o);
-
-                $display("[%0t] [MAC_MV] TILE[%0d][%0d]=%0d TILE[%0d][%0d]=%0d",
-                         $time,
-                         mv_row_idx,
-                         mv_even_col_idx,
-                         tile_snapshot[mv_row_idx][mv_even_col_idx],
-                         mv_row_idx,
-                         mv_odd_col_idx,
-                         tile_snapshot[mv_row_idx][mv_odd_col_idx]);
+                $display("[CVE2_MAC_DEBUG] [%0t ns] SCALAR MOVE DETECTED:", $time);
+                $display("[CVE2_MAC_DEBUG] Mode=%0d | RowIdx=%0d | ColPairs={%0d, %0d} -> WAddr=5'd%0d | WData=32'h%h",
+                         mv_mode, mv_row_idx, mv_even_col_idx, mv_odd_col_idx, scalar_waddr_o, scalar_wdata_o);
             end
-        end
-    end
 
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            $display("[%0t] [CTX] snap=%0b act=%0b wt=%0b ready=%0b accept=%0b busy=%0b done=%0b",
-                     $time,
-                     snapshot_valid_q,
-                     act_scale_valid_q,
-                     weight_scale_valid_q,
-                     context_ready,
-                     context_accept,
-                     scale_busy,
-                     scale_done);
-        end
-    end
+            // 3. Log Full Array Snapshots on Processing Handshakes
+            if (snapshot_valid) begin
+                $display("[CVE2_MAC_DEBUG] [%0t ns] --- CAPTURED 8x8 ARRAY SNAPSHOT MATRIX ---", $time);
+                for (int r = 0; r < TT; r++) begin
+                    $display("[CVE2_MAC_DEBUG] Row [%0d]: %5d %5d %5d %5d %5d %5d %5d %5d", r,
+                             tile_snapshot[r][0], tile_snapshot[r][1], tile_snapshot[r][2], tile_snapshot[r][3],
+                             tile_snapshot[r][4], tile_snapshot[r][5], tile_snapshot[r][6], tile_snapshot[r][7]);
+                end
+                $display("[CVE2_MAC_DEBUG] Act Scales captured:  LO=32'h%h | HI=32'h%h", act_scale_lo, act_scale_hi);
+                $display("[CVE2_MAC_DEBUG] Weight Scales captured: LO=32'h%h | HI=32'h%h", weight_scale_lo, weight_scale_hi);
+            end
 
-    always_ff @(posedge clk_i) begin
-        if (snapshot_valid) begin
-            $display("[%0t] Snapshot captured", $time);
-
-            for (int r=0; r<TT; r++) begin
-                $write("Row %0d :", r);
-                for (int c=0; c<TT; c++)
-                    $write(" %6d", tile_snapshot[r][c]);
-                $write("\n");
+            // 4. Log Real-time Iterative Scaler and BRAM Write Operations
+            if (scale_busy) begin
+                $display("[CVE2_MAC_DEBUG] [%0t ns] SCALE ELEMENT OPERATION:", $time);
+                $display("[CVE2_MAC_DEBUG]   FSM Location: RowGroup=%0d | Col=%0d", scale_row_group, scale_col);
+                $display("[CVE2_MAC_DEBUG]   Raw Tile Val: Upper=%5d | Lower=%5d", scale_tile_value[0], scale_tile_value[1]);
+                $display("[CVE2_MAC_DEBUG]   Scale Factors: ActScale=%02x | WtScale=%02x", scaleA[0], scaleB[0]);
+                $display("[CVE2_MAC_DEBUG]   BRAM Accumulator Pipelines: In=%04h -> Out=%04h", scale_accum_in[0], scale_accum_out[0]);
+                if (bram_wr_en) begin
+                    $display("[CVE2_MAC_DEBUG]   --> BRAM WRITE: Tile=%0d | Row=%0d | Col=%0d | Data=16'h%h",
+                             bram_wr_tile, bram_wr_row, bram_wr_col, bram_wr_data);
+                end
+            end
+            
+            // 5. Log Direct System BIAS Updates to the Storage Cells
+            if (!scale_busy && bram_wr_en) begin
+                $display("[CVE2_MAC_DEBUG] [%0t ns] DIRECT BIAS ACCUMULATOR WRITE OVERRIDE:", $time);
+                $display("[CVE2_MAC_DEBUG]   Target Address Coordinates -> Tile=%0d | Row=%0d | Col=%0d | Payload=16'h%h", 
+                         bram_wr_tile, bram_wr_row, bram_wr_col, bram_wr_data);
             end
         end
     end
