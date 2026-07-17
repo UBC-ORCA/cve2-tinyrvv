@@ -47,14 +47,14 @@ module cve2_cf_mac_unit
     // Decoded Pipeline Instruction Configurations
     //------------------------------------------------------------
     logic [4:0]  vs1;
-    logic [11:0] imm12;
+    logic unsigned [11:0] imm12;
     logic [31:0] weight_base;
     logic [31:0] weight_addr;
 
     assign vs1         = req_instr_i[11:7];
     assign imm12       = req_instr_i[31:20];
     assign weight_base = req_rs1_i;
-    assign weight_addr = weight_base + {{20{imm12[11]}}, imm12};
+    assign weight_addr = weight_base + imm12;
 
     // Instruction field parsing for moves
     logic [4:0]  mv_row;
