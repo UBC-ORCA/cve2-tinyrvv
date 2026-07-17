@@ -181,18 +181,18 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   load_act_scales(act_scales);
   load_w_scales(weight_scales);
 
-//mac_bias(0,0,0,0x3f80);
+mac_bias(0,0,0,0x3f80);
 
 
   // ==========================================
   // BRING-UP TEST 1: Register v0 Verification
   // ==========================================
- // load_v0(&mat_a[0]);               // Loads v0 (Words 0 to 31)
- // mac_zz();                         // Clear accumulator tile
- // mac_mem_test_v0(weights);         // Multiplies v0 by weights[0..31]
- // mac_as();                         // Apply activation scales
- // mac_ws();                         // Apply weight scales
- // chk = mac_out(0, 0, 2);           // Extract pair result
+  load_v0(&mat_a[0]);               // Loads v0 (Words 0 to 31)
+  mac_zz();                         // Clear accumulator tile
+  mac_mem_test_v0(weights);         // Multiplies v0 by weights[0..31]
+  mac_as();                         // Apply activation scales
+  mac_ws();                         // Apply weight scales
+  chk = mac_out(0, 0, 2);           // Extract pair result
 
   // ==========================================
   // BRING-UP TEST 2: Register v1 Verification
@@ -206,11 +206,11 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   chk = mac_out(0, 0, 2);
 
 //BRAM write check
-mac_bias(0,0,0,0x3f80);
-mac_bias(0,0,1,0x4000);
-mac_bias(0,7,7,0x4120);
-mac_bias(1,0,0,0x4040);
-mac_bias(31,7,7,0x3fc0);
+//mac_bias(0,0,0,0x3f80);
+//mac_bias(0,0,1,0x4000);
+///mac_bias(0,7,7,0x4120);
+//mac_bias(1,0,0,0x4040);
+//mac_bias(31,7,7,0x3fc0);
 
   // ==========================================
   // BRING-UP TEST 3: Register v31 Boundary Verification
