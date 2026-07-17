@@ -21,7 +21,7 @@ module mac_scale_fsm #(
     output logic                 scale_busy_o,
     output logic                 scale_done_o,
 
-    // Patch 1: Scale datapath indexing outputs
+    // Scale datapath indexing outputs
     output logic [2:0]           scale_col_o,
     output logic [1:0]           scale_row_group_o
 );
@@ -31,7 +31,8 @@ module mac_scale_fsm #(
     //--------------------------------------------------------------------------
     typedef enum logic [1:0] {
         IDLE,
-        RUN,
+        READ,
+        WRITE,
         DONE
     } state_e;
 
@@ -40,7 +41,7 @@ module mac_scale_fsm #(
     localparam int CNT_W = $clog2(NUM_GROUPS);
     logic [CNT_W-1:0] count_q, count_d;
 
-    // Patch 2: Index tracking registers
+    // Index tracking registers
     logic [2:0]       scale_col_q;
     logic [1:0]       scale_row_group_q;
 
@@ -63,7 +64,6 @@ module mac_scale_fsm #(
             weight_scale_lo_q <= '0;
             weight_scale_hi_q <= '0;
             
-            // Patch 3: Register reset for index signals
             scale_col_q       <= '0;
             scale_row_group_q <= '0;
 
@@ -76,9 +76,11 @@ module mac_scale_fsm #(
             state_q <= state_d;
             count_q <= count_d;
 
-            // Update registered tracking copies along with the current count update
-            scale_col_q       <= count_d[2:0];
-            scale_row_group_q <= count_d[4:3];
+            // Latch current scaling coordinates during READ to drive stable outputs in WRITE
+            if (state_q == READ) begin
+                scale_col_q       <= count_q[2:0];
+                scale_row_group_q <= count_q[4:3];
+            end
 
             // Latch execution context exactly on the cycle the handshake matches
             if ((state_q == IDLE) && context_ready_i) begin
@@ -102,15 +104,20 @@ module mac_scale_fsm #(
             IDLE: begin
                 count_d = '0;
                 if (context_ready_i) begin
-                    state_d = RUN;
+                    state_d = READ;
                 end
             end
 
-            RUN: begin
+            READ: begin
+                state_d = WRITE;
+            end
+
+            WRITE: begin
                 if (count_q == (NUM_GROUPS[CNT_W-1:0] - 1'b1)) begin
                     state_d = DONE;
                 end else begin
                     count_d = count_q + 1'b1;
+                    state_d = READ;
                 end
             end
 
@@ -128,13 +135,11 @@ module mac_scale_fsm #(
     // Glitch-Free Combinational Output Generation
     //--------------------------------------------------------------------------
     assign context_accept_o = (state_q == IDLE) && context_ready_i;
-    assign scale_busy_o     = (state_q == RUN);
-    assign scale_done_o     = (state_q == DONE);
+    assign scale_busy_o      = (state_q == READ) || (state_q == WRITE);
+    assign scale_done_o      = (state_q == DONE);
 
-    // Patch 2: Generate dynamic indexing directly mapping counter to active matrix groups
-    always_comb begin
-        scale_col_o       = count_q[2:0];
-        scale_row_group_o = count_q[4:3];
-    end
+    // Coordinates remain stable for the scaler and memory interfaces during WRITE
+    assign scale_col_o       = scale_col_q;
+    assign scale_row_group_o = scale_row_group_q;
 
 endmodule

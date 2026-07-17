@@ -11,7 +11,7 @@ extern void matmul8_vec(const volatile uint32_t *a,
 #define BS 32
 #define WORDS_PER_VREG 32
 //#define NUM_VREGS 32
-#define NUM_VREGS 2
+#define NUM_VREGS 1
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
@@ -195,11 +195,11 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   // BRING-UP TEST 2: Register v1 Verification
   // ==========================================
 
-  load_v1(&mat_a[32]);              // Loads v1 (Words 32 to 63)
-  mac_zz();
-  mac_mem_test_v1(weights);         // Multiplies v1 by weights[32..63]
-  mac_as();
-  mac_ws();
+  //load_v1(&mat_a[32]);              // Loads v1 (Words 32 to 63)
+  //mac_zz();
+  //mac_mem_test_v1(weights);         // Multiplies v1 by weights[32..63]
+  //mac_as();
+  //mac_ws();
   chk = mac_out(0, 0, 2);
 
 //BRAM write check

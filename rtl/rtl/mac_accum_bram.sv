@@ -136,44 +136,44 @@ always_ff @(posedge clk_i) begin
 
         $display("======================================================");
         $display("");
- $display("");
-        $display("======================================================");
+// $display("");
+  //      $display("======================================================");
 //        $display("ACCUMULATOR BRAM TILE %0d @ time %0t", wr_tile_i, $time);
-        $display("ACCUMULATOR BRAM TILE 1 @ time %0t", $time);
+//        $display("ACCUMULATOR BRAM TILE 1 @ time %0t", $time);
 
 
-        for (r = 0; r < TT; r++) begin
-            $write("Row %0d :", r);
+//        for (r = 0; r < TT; r++) begin
+ //           $write("Row %0d :", r);
 
-            for (c = 0; c < TT; c++) begin
-                addr = (1 << 6) + (r << 3) + c;
-                $write(" %6h", accum_mem[addr]);
-            end
+  //          for (c = 0; c < TT; c++) begin
+  //              addr = (1 << 6) + (r << 3) + c;
+   //             $write(" %6h", accum_mem[addr]);
+  //          end
+//
+  //          $write("\n");
+  //      end
 
-            $write("\n");
-        end
-
-        $display("======================================================");
-        $display("");
- $display("");
-        $display("======================================================");
+  // //     $display("======================================================");
+ //       $display("");
+// $display("");
+ //       $display("======================================================");
 //        $display("ACCUMULATOR BRAM TILE %0d @ time %0t", wr_tile_i, $time);
-        $display("ACCUMULATOR BRAM TILE 31 @ time %0t", $time);
+  //      $display("ACCUMULATOR BRAM TILE 31 @ time %0t", $time);
 
 
-        for (r = 0; r < TT; r++) begin
-            $write("Row %0d :", r);
+   //     for (r = 0; r < TT; r++) begin
+  //          $write("Row %0d :", r);
 
-            for (c = 0; c < TT; c++) begin
-                addr = (31 << 6) + (r << 3) + c;
-                $write(" %6h", accum_mem[addr]);
-            end
+ //           for (c = 0; c < TT; c++) begin
+ //               addr = (31 << 6) + (r << 3) + c;
+  //              $write(" %6h", accum_mem[addr]);
+  //          end
 
-            $write("\n");
-        end
+  //          $write("\n");
+   //     end
 
-        $display("======================================================");
-        $display("");
+   //     $display("======================================================");
+    //    $display("");
 
 
     //end
