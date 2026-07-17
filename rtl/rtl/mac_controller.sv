@@ -26,7 +26,7 @@ module mac_controller #(
     input  logic [31:0]          base_i,
 
     output logic [4:0]           mac_vrf_raddr_o,
-    output logic [2:0]           mac_vrf_relem_o,
+    output logic [4:0]           mac_vrf_relem_o, // Patched: Changed width from [2:0] to [4:0]
     input  logic [31:0]          mac_vrf_rdata_i, 
 
     // Weight memory interface
@@ -97,15 +97,13 @@ module mac_controller #(
     logic [CNT_W-1:0] count_d;
 
     //------------------------------------------------------------
-    // Patched: Flattened VRF traversal decoding logic
+    // Patched: Simplified flat VRF index decoding logic
     //------------------------------------------------------------
-    logic [1:0] reg_group;
-    logic [2:0] elem_idx;
+    logic [4:0] elem_idx;
     logic [4:0] mac_vrf_addr;
 
-    assign reg_group    = count_q[4:3]; // Decodes register offset (0..3)
-    assign elem_idx     = count_q[2:0]; // Decodes element index within register (0..7)
-    assign mac_vrf_addr = vs1_q + reg_group;
+    assign elem_idx     = count_q;
+    assign mac_vrf_addr = vs1_q;
 
     // Patched: Register to delay the snapshot by 1 clock cycle 
     logic        vmac_last_q;
@@ -261,7 +259,6 @@ module mac_controller #(
         mac_en_o = ((state_q == EXEC) && (op_q == cve2_pkg::OP_VMAC) && data_rvalid_i) || 
                    ((state_q == EXEC) && (op_q == cve2_pkg::OP_MAC));
         clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ);
-//        clear_o = (state_q == EXEC) && (op_q == cve2_pkg::OP_ZZ) || snapshot_valid_q;
 
         mac_vrf_raddr_o = '0;
         mac_vrf_relem_o = '0;

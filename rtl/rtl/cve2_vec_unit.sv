@@ -21,7 +21,7 @@
 // - vsrl.vi
 
 module cve2_vec_unit #(
-  parameter int unsigned VLEN     = 256,
+  parameter int unsigned VLEN     = 1024,
   parameter int unsigned SEW      = 32,
   parameter int unsigned NUM_REGS = 32
 ) (
@@ -70,7 +70,8 @@ module cve2_vec_unit #(
 // From CF MAC unit -> VRF
 //input  logic        mac_vrf_re_i,
 input  logic [4:0]  mac_vrf_raddr_i,
-input  logic [2:0]  mac_vrf_relem_i,
+input  logic [4:0]  mac_vrf_relem_i,
+//input  logic [2:0]  mac_vrf_relem_i,
 
 // From VRF -> CF MAC unit
 output logic [31:0] mac_vrf_rdata_o

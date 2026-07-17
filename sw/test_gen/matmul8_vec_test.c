@@ -1,4 +1,3 @@
-
 #include <stdint.h>
 
 extern void putchar_uart(char c);
@@ -9,23 +8,25 @@ extern void matmul8_vec(const volatile uint32_t *a,
 
 #define MAT_N 8
 #define TT 8
-//#define BS 8
 #define BS 32
-#define NVREG 32
-#define NVREGG 1 //Number of vector reg groups
+#define WORDS_PER_VREG 32
+//#define NUM_VREGS 32
+#define NUM_VREGS 1
 
 static volatile uint32_t *const DONE_MMIO       = (volatile uint32_t *)0xFFFF0000u;
 static volatile uint32_t *const COMP_START_MMIO = (volatile uint32_t *)0xFFFF0004u;
 static volatile uint32_t *const COMP_END_MMIO   = (volatile uint32_t *)0xFFFF0008u;
 
-
-//static volatile uint32_t mat_a[TT * BS * NVREG]
-//    __attribute__((section(".mat_a"), used));
-static volatile uint32_t mat_a[TT * BS * NVREGG]
+// 32 vregs x 32 words = 1024 words (4096 Bytes)
+static volatile uint32_t mat_a[WORDS_PER_VREG * NUM_VREGS]
     __attribute__((section(".mat_a"), used));
 
-static volatile uint32_t mat_b[MAT_N * MAT_N]
-    __attribute__((section(".mat_bt"), used));
+// Declared as a standard global array, placing it directly into default RAM
+uint32_t mat_b[MAT_N * MAT_N];
+
+// Declared as a standard global array, placing it directly into default RAM
+uint32_t weights[WORDS_PER_VREG * NUM_VREGS];
+
 static volatile uint32_t mat_c[MAT_N * MAT_N]
     __attribute__((section(".mat_c"), used));
 static volatile uint32_t tmp_prod[MAT_N]
@@ -40,106 +41,52 @@ static void print_str(const char *s) {
   while (*s) putchar_uart(*s++);
 }
 
-
-
-
-
-
-/*
-
-int main(void) {
-  *COMP_START_MMIO = 1u;
-  matmul8_vec(mat_a, mat_b, mat_c, tmp_prod);
-  *COMP_END_MMIO = 1u;
-
-  uint32_t total = 0;
-  uint32_t diag  = 0;
-  for (int i = 0; i < MAT_N; ++i) {
-    for (int j = 0; j < MAT_N; ++j) {
-      uint32_t v = mat_c[i * MAT_N + j];
-      total += v;
-      if (i == j) diag += v;
-    }
-  }
-
-  print_str("[matmul8_vec] total=");
-  print_u32_hex(total);
-  print_str(" diag=");
-  print_u32_hex(diag);
-  print_str("\n");
-
-  *DONE_MMIO = total;
-  for (;;) {}
-
-  return 0;
-}
-
-*/
-
-// --- [stev] ---
-//extern void load_v0(uint32_t *ptr);
-//extern void load_v1(uint32_t *ptr);
-
-uint32_t vec[8] = {
-    0x11111111,
-    0x22222222,
-    0x33333333,
-    0x44444444,
-    0x55555555,
-    0x66666666,
-    0x77777777,
-    0x88888888
-};
-// --- [end] ---
-
+// Low-level controls
 extern void mac_zz(void);
 extern void mac_hw(uint32_t a, uint32_t b);
 extern uint32_t mac_out_even(void);
 extern uint32_t mac_out_odd(void);
 extern uint32_t mac_out_pair(void);
 extern void mac_max(int16_t threshold);
-//extern void mac_add_row(uint32_t value);
 extern void mac_add_row(uint32_t row, int16_t value);
-
 extern void mac_ld2(void *base);
 extern void mac_st2(void *base);
 
+// Load vector registers (32-word VLEN entries)
+extern void load_v0(volatile uint32_t *ptr);
+extern void load_v1(volatile uint32_t *ptr);
+extern void load_v2(volatile uint32_t *ptr);
+extern void load_v3(volatile uint32_t *ptr);
+extern void load_v4(volatile uint32_t *ptr);
+extern void load_v5(volatile uint32_t *ptr);
+extern void load_v6(volatile uint32_t *ptr);
+extern void load_v7(volatile uint32_t *ptr);
+extern void load_v8(volatile uint32_t *ptr);
+extern void load_v9(volatile uint32_t *ptr);
+extern void load_v10(volatile uint32_t *ptr);
+extern void load_v11(volatile uint32_t *ptr);
+extern void load_v12(volatile uint32_t *ptr);
+extern void load_v13(volatile uint32_t *ptr);
+extern void load_v14(volatile uint32_t *ptr);
+extern void load_v15(volatile uint32_t *ptr);
+extern void load_v16(volatile uint32_t *ptr);
+extern void load_v17(volatile uint32_t *ptr);
+extern void load_v18(volatile uint32_t *ptr);
+extern void load_v19(volatile uint32_t *ptr);
+extern void load_v20(volatile uint32_t *ptr);
+extern void load_v21(volatile uint32_t *ptr);
+extern void load_v22(volatile uint32_t *ptr);
+extern void load_v23(volatile uint32_t *ptr);
+extern void load_v24(volatile uint32_t *ptr);
+extern void load_v25(volatile uint32_t *ptr);
+extern void load_v26(volatile uint32_t *ptr);
+extern void load_v27(volatile uint32_t *ptr);
+extern void load_v28(volatile uint32_t *ptr);
+extern void load_v29(volatile uint32_t *ptr);
+extern void load_v30(volatile uint32_t *ptr);
+extern void load_v31(volatile uint32_t *ptr);
 
-// Load vector registers
-extern void load_v0(uint32_t *ptr);
-extern void load_v1(uint32_t *ptr);
-extern void load_v2(uint32_t *ptr);
-extern void load_v3(uint32_t *ptr);
-extern void load_v4(uint32_t *ptr);
-extern void load_v5(uint32_t *ptr);
-extern void load_v6(uint32_t *ptr);
-extern void load_v7(uint32_t *ptr);
-extern void load_v8(uint32_t *ptr);
-extern void load_v9(uint32_t *ptr);
-extern void load_v10(uint32_t *ptr);
-extern void load_v11(uint32_t *ptr);
-extern void load_v12(uint32_t *ptr);
-extern void load_v13(uint32_t *ptr);
-extern void load_v14(uint32_t *ptr);
-extern void load_v15(uint32_t *ptr);
-extern void load_v16(uint32_t *ptr);
-extern void load_v17(uint32_t *ptr);
-extern void load_v18(uint32_t *ptr);
-extern void load_v19(uint32_t *ptr);
-extern void load_v20(uint32_t *ptr);
-extern void load_v21(uint32_t *ptr);
-extern void load_v22(uint32_t *ptr);
-extern void load_v23(uint32_t *ptr);
-extern void load_v24(uint32_t *ptr);
-extern void load_v25(uint32_t *ptr);
-extern void load_v26(uint32_t *ptr);
-extern void load_v27(uint32_t *ptr);
-extern void load_v28(uint32_t *ptr);
-extern void load_v29(uint32_t *ptr);
-extern void load_v30(uint32_t *ptr);
-extern void load_v31(uint32_t *ptr);
-
-// Memory-backed VMAC tests
+// Memory-backed VMAC operations
 extern void mac_mem_test_v0(uint32_t *ptr);
 extern void mac_mem_test_v1(uint32_t *ptr);
 extern void mac_mem_test_v2(uint32_t *ptr);
@@ -173,229 +120,95 @@ extern void mac_mem_test_v29(uint32_t *ptr);
 extern void mac_mem_test_v30(uint32_t *ptr);
 extern void mac_mem_test_v31(uint32_t *ptr);
 
-
-// scale
-/*
-uint32_t act_scales[2] = {
-    0x8281807F,
-    0x86858483
-};
-
-uint32_t weight_scales[2] = {
-    0x7C7D7E7F,
-    0x78797A7B
-};
-*/
-
-uint32_t weight_scales[2] = {
-    0x40404040,
-    0x40404040
-};
-
-uint32_t act_scales[2] = {
-    0x40404040,
-    0x40404040
-};
+// Scale configuration
+uint32_t weight_scales[2] = {0x40404040, 0x40404040};
+uint32_t act_scales[2]    = {0x40404040, 0x40404040};
 
 extern void load_act_scales(const uint32_t *base);
 extern void load_w_scales(const uint32_t *base);
 extern void mac_as(void);
 extern void mac_ws(void);
 
-
-//static volatile uint32_t mac_test_mem[8]
-  //  __attribute__((section(".mat_a"), used));
-//MEM_end
-
-
-// mode:
-//   0 = even
-//   1 = odd
-//   2 = pair
+// Mode: 0 = even, 1 = odd, 2 = pair
 uint32_t mac_out(uint32_t row, uint32_t pair, uint32_t mode);
 
 int main(void)
 {
+  uint32_t chk = 0;
 
-uint32_t a = 0x01234567;
-uint32_t b = 0x76543210;
+  // 1. Initialize Activation Matrix (mat_a) with easy-to-track visual patterns
+  for (int v = 0; v < NUM_VREGS; v++) {
+    for (int i = 0; i < WORDS_PER_VREG; i++) {
+      mat_a[v * WORDS_PER_VREG + i] = 0x11111111 * (v + 1);
+    }
+  }
 
-uint32_t data;
+  // 2. Initialize Weight Matrix to sequential tracking offsets
+/*
+  for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
+    weights[i] = i + 1;
+  }
+*/
 
-//MEM
-//MEM
+// Initialize Weight Matrix with readable packed FP4 values
+// Each uint32_t contains 8 FP4 values (4 bits each)
+// Pattern: 0x11111111 ... 0x88888888, repeat
 
-//for (int i = 0; i < TT * BS * NVREG; i++)
-//{
-    //mat_a[i] = 0x11111111 * (i + 1);
-// 	mat_a[i] = vec[i % 8];
-//}
-
-for (int i = 0; i < TT * BS * NVREGG; i++)
-{
-    mat_a[i] = 0x11111111 * ((i + 1)%8);
- //	mat_a[i] = vec[i % 8];
+for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
+    uint32_t fp4 = (i % 8) + 1;   // 1..8
+    weights[i] = fp4 |
+                 (fp4 << 4) |
+                 (fp4 << 8) |
+                 (fp4 << 12) |
+                 (fp4 << 16) |
+                 (fp4 << 20) |
+                 (fp4 << 24) |
+                 (fp4 << 28);
 }
 
-
-//MEM_end
-//MEM_end
-
-
+  // Begin hardware performance profiling
   *COMP_START_MMIO = 1u;
 
-    //mac_zz(); //[stev] - looks good
+  // Set up standard scaling scales for validation pipeline
+  load_act_scales(act_scales);
+  load_w_scales(weight_scales);
 
-//rm_for test scale fsm
+  // ==========================================
+  // BRING-UP TEST 1: Register v0 Verification
+  // ==========================================
+  load_v0(&mat_a[0]);               // Loads v0 (Words 0 to 31)
+  mac_zz();                         // Clear accumulator tile
+  mac_mem_test_v0(weights);         // Multiplies v0 by weights[0..31]
+  mac_as();                         // Apply activation scales
+  mac_ws();                         // Apply weight scales
+  chk = mac_out(0, 0, 2);           // Extract pair result
 
+  // ==========================================
+  // BRING-UP TEST 2: Register v1 Verification
+  // ==========================================
 /*
-     * Load v0 with 8 words.
-     * VMAC64 will use v0 as the vector operand.
-     */
-//    load_v1((uint32_t *)mat_a);
+  load_v1(&mat_a[32]);              // Loads v1 (Words 32 to 63)
+  mac_zz();
+  mac_mem_test_v1(weights);         // Multiplies v1 by weights[32..63]
+  mac_as();
+  mac_ws();
+  chk = mac_out(0, 0, 2);
+*/
 
-   /*
-     * Run vector MAC.
-     * Assembly:
-     *   VMAC64(0,0,10)
-     *   v0 x memory block 0
-     */
-//    mac_mem_test_v1((uint32_t *)mat_a);
-
-//mac_zz(); //clear tile here
-
-//mac_hw(a, b); //[stev] - looks good
-
-//uint32_t chk = mac_out(4,1,2);
-
-//mac_zz(); //clear tile here
-//rm_for test scale fsm end
-
-load_act_scales(act_scales);
-load_w_scales(weight_scales);
-
-     //load_v0((uint32_t *)mat_a);
-     //load_v1((uint32_t *)mat_a); //test vec batch
-     //load_v2((uint32_t *)mat_a); //test vec batch
-     //load_v3((uint32_t *)mat_a); //test vec batch
-load_v0(&mat_a[0]);
-load_v1(&mat_a[8]);
-load_v2(&mat_a[16]);
-load_v3(&mat_a[24]);
-//load_v4(&mat_a[32]);
-//load_v5(&mat_a[40]);
-//load_v6(&mat_a[48]);
-//load_v7(&mat_a[56]);
-
-    mac_mem_test_v0((uint32_t *)mat_a);
-
-//rm_for test scale fsm
-//load_act_scales(act_scales);
-mac_as();
-//load_w_scales(weight_scales);
-mac_ws();
-//mac_zz(); //clear tile here
-
-//uint32_t chk = mac_out(4,1,2);
-////rm_for test scale fsm end
-//    mac_mem_test_v4((uint32_t *)mat_a);
-//mac_as();
-//mac_ws();
-
-//v31
-//mac_zz(); //clear tile here
-
-  //   load_v31((uint32_t *)mat_a);
-
-    //mac_mem_test_v31((uint32_t *)mat_a);
-
-
-//MEM
-   //  load_v0(vec);   // [stev] - fills v0
-//	mac_hw(a, b); //[stev] - looks good
-uint32_t chk = mac_out(4,1,2);
-
-//MEM_end
-
-//mac_mem_test((uint32_t *)mac_test_mem);
-
-//uint32_t chk = mac_out_pair(); //[stev] - good
-//uint32_t chk = mac_out_even(); //[stev] - good
-//uint32_t chk = mac_out_odd(); //[stev] - good
-//mac_max(96); //[stev] - looks good
-//mac_add_row(7,0x00000010); //[stev] - looks good
-
-
-//mac_ld2(&data); //[stev] - not good
-//mac_st2(&data); //[stev] - not good
-
-//mac_max(12); //[stev] - looks good
-//chk = mac_out_pair(); //[stev] - good
-
-//chk = mac_out(0,1,0); 
-//chk = mac_out(6,3,1); 
-//chk = mac_out(4,1,2); 
-
-
+  // ==========================================
+  // BRING-UP TEST 3: Register v31 Boundary Verification
+  // ==========================================
+/*
+  load_v31(&mat_a[992]);            // Loads v31 (Words 992 to 1023)
+  mac_zz();
+  mac_mem_test_v31(weights);        // Multiplies v31 by weights[992..1023]
+  mac_as();
+  mac_ws();
+  chk = mac_out(0, 0, 2);
+*/
+  // End hardware profiling and report output register status
   *COMP_END_MMIO = 1u;
-
-  //*DONE_MMIO = 0x22;
   *DONE_MMIO = chk;
 
   while (1) {}
 }
-
-/*
-#define CUSTOM2 0x7b
-#define MAC_ZZ  0x00
-#define MAC_HW  0x02
-#define MAC_MVO 0x04
-
-#define MAC_INS(f7) ((CUSTOM2) | ((f7) << 25))
-
-static inline void mac_zz(void) {
-  asm volatile(".word %0" :: "i"(MAC_INS(MAC_ZZ)));
-}
-
-static inline void mac_hw(void) {
-  asm volatile(".word %0" :: "i"(MAC_INS(MAC_HW)));
-}
-
-static inline uint32_t mac_out(void) {
-  uint32_t v;
-  asm volatile(
-    ".word %1\n"
-    "mv %0, x10"
-    : "=r"(v)
-    : "i"(MAC_INS(MAC_MVO))
-    : "x10"
-  );
-  return v;
-}
-
-int main() {
-  *COMP_START_MMIO = 1u;
-
-
-
-
-  mac_zz();   // reset tile
-
-  // deterministic accumulation test
-  //mac_hw();
- // mac_hw();
-  //mac_hw();
-
-  *COMP_END_MMIO = 1u;
-
-
-
-  //uint32_t result = mac_out();
-
-  *DONE_MMIO = result;
-  *DONE_MMIO = 1;
-  while (1) {}
-}
-*/
-
-

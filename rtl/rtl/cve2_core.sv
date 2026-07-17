@@ -218,7 +218,8 @@ cve2_pkg::mac_op_e cf_req_op_int;
   // Vector Register File <-> Custom FP4 MAC Unit interface
   // ------------------------------------------------------------
   logic [4:0]  mac_vrf_raddr; //[stev] - need to param?
-  logic [2:0]  mac_vrf_relem;
+  logic [4:0]  mac_vrf_relem;
+//  logic [2:0]  mac_vrf_relem;
   logic [31:0] mac_vrf_rdata;
 
 // --- [end] ---

@@ -36,7 +36,8 @@ module cve2_cf_mac_unit
 
     // Vector Register File Interface
     output logic [4:0]                mac_vrf_raddr_o,
-    output logic [2:0]                mac_vrf_relem_o,
+    output logic [4:0]                mac_vrf_relem_o,
+//    output logic [2:0]                mac_vrf_relem_o,
     input  logic [31:0]               mac_vrf_rdata_i
 );
 
