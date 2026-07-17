@@ -312,71 +312,72 @@ module cve2_cf_mac_unit
     logic [7:0]  scaleA          [0:3];
     logic [7:0]  scaleB          [0:3];
 
-//    mac_scale_accum u_scale_accum0 (
-//        .tile_value(scale_tile_value[0]),
-//        .scaleA(scaleA[0]),
-//        .scaleB(scaleB[0]),
-//        .accumulator(scale_accum_in[0]),
-//        .accumulator_out(scale_accum_out[0])
-//    );
+    mac_scale_accum u_scale_accum0 (
+        .tile_value(scale_tile_value[0]),
+        .scaleA(scaleA[0]),
+        .scaleB(scaleB[0]),
+        .accumulator(scale_accum_in[0]),
+        .accumulator_out(scale_accum_out[0])
+    );
 
-//    mac_scale_accum u_scale_accum1 (
-//        .tile_value(scale_tile_value[1]),
-//        .scaleA(scaleA[1]),
-//        .scaleB(scaleB[1]),
-//        .accumulator(scale_accum_in[1]),
-//        .accumulator_out(scale_accum_out[1])
-//    );
+    mac_scale_accum u_scale_accum1 (
+        .tile_value(scale_tile_value[1]),
+        .scaleA(scaleA[1]),
+        .scaleB(scaleB[1]),
+        .accumulator(scale_accum_in[1]),
+        .accumulator_out(scale_accum_out[1])
+    );
 
-//    mac_scale_accum u_scale_accum2 (
-//        .tile_value(scale_tile_value[2]),
-//        .scaleA(scaleA[2]),
-//        .scaleB(scaleB[2]),
-//        .accumulator(scale_accum_in[2]),
-//        .accumulator_out(scale_accum_out[2])
-//    );
+    mac_scale_accum u_scale_accum2 (
+        .tile_value(scale_tile_value[2]),
+        .scaleA(scaleA[2]),
+        .scaleB(scaleB[2]),
+        .accumulator(scale_accum_in[2]),
+        .accumulator_out(scale_accum_out[2])
+    );
 
-//    mac_scale_accum u_scale_accum3 (
-//        .tile_value(scale_tile_value[3]),
-//        .scaleA(scaleA[3]),
-//        .scaleB(scaleB[3]),
-//        .accumulator(scale_accum_in[3]),
-//        .accumulator_out(scale_accum_out[3])
-//    );
+    mac_scale_accum u_scale_accum3 (
+        .tile_value(scale_tile_value[3]),
+        .scaleA(scaleA[3]),
+        .scaleB(scaleB[3]),
+        .accumulator(scale_accum_in[3]),
+        .accumulator_out(scale_accum_out[3])
+    );
 
 //E4M3 
 
-    e4m3_scale u_scale_accum0 (
-        .acc_q14_2_in(scale_tile_value[0]),
-        .a_scale_in(scaleA[0]),
-        .w_scale_in(scaleB[0]),
-        .bf16_in(scale_accum_in[0]),
-        .bf16_out(scale_accum_out[0])
-    );
 
-    e4m3_scale u_scale_accum1 (
-        .acc_q14_2_in(scale_tile_value[1]),
-        .a_scale_in(scaleA[1]),
-        .w_scale_in(scaleB[1]),
-        .bf16_in(scale_accum_in[1]),
-        .bf16_out(scale_accum_out[1])
-    );
+  //  e4m3_scale u_scale_accum0 (
+//        .acc_q14_2_in(scale_tile_value[0]),
+//        .a_scale_in(scaleA[0]),
+//        .w_scale_in(scaleB[0]),
+//        .bf16_in(scale_accum_in[0]),
+//        .bf16_out(scale_accum_out[0])
+//    );
 
-    e4m3_scale u_scale_accum2 (
-        .acc_q14_2_in(scale_tile_value[2]),
-        .a_scale_in(scaleA[2]),
-        .w_scale_in(scaleB[2]),
-        .bf16_in(scale_accum_in[2]),
-        .bf16_out(scale_accum_out[2])
-    );
+ //   e4m3_scale u_scale_accum1 (
+//        .acc_q14_2_in(scale_tile_value[1]),
+//        .a_scale_in(scaleA[1]),
+//        .w_scale_in(scaleB[1]),
+//        .bf16_in(scale_accum_in[1]),
+//        .bf16_out(scale_accum_out[1])
+ //   );
 
-    e4m3_scale u_scale_accum3 (
-        .acc_q14_2_in(scale_tile_value[3]),
-        .a_scale_in(scaleA[3]),
-        .w_scale_in(scaleB[3]),
-        .bf16_in(scale_accum_in[3]),
-        .bf16_out(scale_accum_out[3])
-    );
+//    e4m3_scale u_scale_accum2 (
+//        .acc_q14_2_in(scale_tile_value[2]),
+//        .a_scale_in(scaleA[2]),
+//        .w_scale_in(scaleB[2]),
+//        .bf16_in(scale_accum_in[2]),
+//        .bf16_out(scale_accum_out[2])
+ //   );
+
+//    e4m3_scale u_scale_accum3 (
+//        .acc_q14_2_in(scale_tile_value[3]),
+//        .a_scale_in(scaleA[3]),
+//        .w_scale_in(scaleB[3]),
+//        .bf16_in(scale_accum_in[3]),
+//        .bf16_out(scale_accum_out[3])
+//    );
 
  //E4M3_end
 
