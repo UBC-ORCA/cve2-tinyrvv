@@ -15,7 +15,7 @@ module mac_accum_bram (
     input  logic [4:0]  rd_tile_i,
     input  logic [2:0]  rd_row_i,
     input  logic [2:0]  rd_col_i,
-    output logic [15:0] rd_data_o,
+    output logic [31:0] rd_data_o, 
 
     //----------------------------------
     // Write Port (Tile Structural Coordinates)
@@ -24,7 +24,7 @@ module mac_accum_bram (
     input  logic [4:0]  wr_tile_i,
     input  logic [2:0]  wr_row_i,
     input  logic [2:0]  wr_col_i,
-    input  logic [15:0] wr_data_i
+    input  logic [31:0] wr_data_i  // Patched to 32-bit width for balanced tracking
 );
 
     // Architectural Dimension Parameters
@@ -34,16 +34,11 @@ module mac_accum_bram (
     localparam int unsigned ADDR_W = 11;
 
     // Accumulator Tile Memory Array
-    // BRAM hint for Xilinx Vivado toolchain inference.
     (* ram_style = "block" *)
     logic [15:0] accum_mem [0:DEPTH-1];
 
-    // Internal flattened physical addresses
-    logic [ADDR_W-1:0] rd_addr_flat;
+    // Internal flattened physical address structures
     logic [ADDR_W-1:0] wr_addr_flat;
-
-    // Address translation pipeline logic: tile * 64 + row * 8 + col
-    assign rd_addr_flat = (ADDR_W'(rd_tile_i) << 6) + (ADDR_W'(rd_row_i) << 3) + ADDR_W'(rd_col_i);
     assign wr_addr_flat = (ADDR_W'(wr_tile_i) << 6) + (ADDR_W'(wr_row_i) << 3) + ADDR_W'(wr_col_i);
 
     //----------------------------------
@@ -53,29 +48,33 @@ module mac_accum_bram (
     logic [4:0]  rd_tile_q;
     logic [2:0]  rd_row_q;
     logic [2:0]  rd_col_q;
-    logic [ADDR_W-1:0] rd_addr_flat_q;
 
     //----------------------------------
     // Synchronous Read Process
     //----------------------------------
     always_ff @(posedge clk_i) begin
         if (rd_en_i) begin
-            rd_data_o <= accum_mem[rd_addr_flat];
+            // Safety enforcement: ensure read alignments hit even group row boundaries
+            assert(rd_row_i[0] == 1'b0) else
+                $error("[BRAM_ACCUM_ERROR] Read row must be even for paired layout, got %0d", rd_row_i);
+
+            // Fetch row pair in a single memory lookup cycle
+            rd_data_o <= {
+                accum_mem[(ADDR_W'(rd_tile_i) << 6) + (ADDR_W'(rd_row_i + 1'b1) << 3) + ADDR_W'(rd_col_i)], // row_n + 1 (bits 31:16)
+                accum_mem[(ADDR_W'(rd_tile_i) << 6) + (ADDR_W'(rd_row_i)        << 3) + ADDR_W'(rd_col_i)]  // row_n     (bits 15:0)
+            };
         end
         
-        // Pipelining metadata to align log output with synchronous data arrival
         if (!rst_ni) begin
-            rd_en_q        <= 1'b0;
-            rd_tile_q      <= '0;
-            rd_row_q       <= '0;
-            rd_col_q       <= '0;
-            rd_addr_flat_q <= '0;
+            rd_en_q   <= 1'b0;
+            rd_tile_q <= '0;
+            rd_row_q  <= '0;
+            rd_col_q  <= '0;
         end else begin
-            rd_en_q        <= rd_en_i;
-            rd_tile_q      <= rd_tile_i;
-            rd_row_q       <= rd_row_i;
-            rd_col_q       <= rd_col_i;
-            rd_addr_flat_q <= rd_addr_flat;
+            rd_en_q   <= rd_en_i;
+            rd_tile_q <= rd_tile_i;
+            rd_row_q  <= rd_row_i;
+            rd_col_q  <= rd_col_i;
         end
     end
 
@@ -84,7 +83,14 @@ module mac_accum_bram (
     //----------------------------------
     always_ff @(posedge clk_i) begin
         if (wr_en_i) begin
-            accum_mem[wr_addr_flat] <= wr_data_i;
+            assert(wr_row_i[0] == 1'b0) else
+                $error("[BRAM_ACCUM_ERROR] Write row must be even for paired layout, got %0d", wr_row_i);
+
+            // row n
+            accum_mem[wr_addr_flat] <= wr_data_i[15:0];
+
+            // row n + 1
+            accum_mem[(ADDR_W'(wr_tile_i) << 6) + (ADDR_W'(wr_row_i + 1'b1) << 3) + ADDR_W'(wr_col_i)] <= wr_data_i[31:16];
         end
     end
 
@@ -93,90 +99,38 @@ module mac_accum_bram (
     //----------------------------------
     always_ff @(posedge clk_i) begin
         if (rst_ni) begin
-            // 1. Log Memory Array Read Accesses (Aligned to when rd_data_o updates)
             if (rd_en_q) begin
                 $display("[BRAM_ACCUM_DEBUG] [%0t ns] MEMORY READ COMPLETE:", $time);
-                $display("[BRAM_ACCUM_DEBUG]   Coordinates -> Tile=%2d | Row=%1d | Col=%1d", rd_tile_q, rd_row_q, rd_col_q);
-                $display("[BRAM_ACCUM_DEBUG]   Addressing  -> Flat Physical Addr=11'd%0d (11'h%h)", rd_addr_flat_q, rd_addr_flat_q);
-                $display("[BRAM_ACCUM_DEBUG]   Payload     -> Out Data=16'h%h (%5d signed)", rd_data_o, $signed(rd_data_o));
+                $display("[BRAM_ACCUM_DEBUG]   Coordinates -> Tile=%2d | Rows=%1d,%1d | Col=%1d", rd_tile_q, rd_row_q, rd_row_q+1, rd_col_q);
+                $display("[BRAM_ACCUM_DEBUG]   Payload     -> Out Data=32'h%h", rd_data_o);
+                $display("[BRAM_ACCUM_DEBUG]                row0=%4h row1=%4h", rd_data_o[15:0], rd_data_o[31:16]);
             end
 
-            // 2. Log Memory Array Mutation Transactions
             if (wr_en_i) begin
                 $display("[BRAM_ACCUM_DEBUG] [%0t ns] MEMORY WRITE TRANSACTION COMMITTED:", $time);
-                $display("[BRAM_ACCUM_DEBUG]   Coordinates -> Tile=%2d | Row=%1d | Col=%1d", wr_tile_i, wr_row_i, wr_col_i);
-                $display("[BRAM_ACCUM_DEBUG]   Addressing  -> Flat Physical Addr=11'd%0d (11'h%h)", wr_addr_flat, wr_addr_flat);
-                $display("[BRAM_ACCUM_DEBUG]   Payload     -> In Data =16'h%h (%5d signed)", wr_data_i, $signed(wr_data_i));
+                $display("[BRAM_ACCUM_DEBUG]   Coordinates -> Tile=%2d | Rows=%1d,%1d | Col=%1d", wr_tile_i, wr_row_i, wr_row_i+1, wr_col_i);
+                $display("[BRAM_ACCUM_DEBUG]   Payload     -> In Data=32'h%h", wr_data_i);
+                $display("[BRAM_ACCUM_DEBUG]                row0=%4h row1=%4h", wr_data_i[15:0], wr_data_i[31:16]);
             end
         end
     end
 
-//accum_mem
-integer r,c;
-integer addr;
-
-always_ff @(posedge clk_i) begin
-    //if (rst_ni && wr_en_i) begin
-        $display("");
-        $display("======================================================");
-//        $display("ACCUMULATOR BRAM TILE %0d @ time %0t", wr_tile_i, $time);
-        $display("ACCUMULATOR BRAM TILE 0 @ time %0t", $time);
-
-
-        for (r = 0; r < TT; r++) begin
-            $write("Row %0d :", r);
-
-            for (c = 0; c < TT; c++) begin
-                addr = (0 << 6) + (r << 3) + c;
-                $write(" %6h", accum_mem[addr]);
+    // Display Array Monitor helper logic
+    integer r, c, addr;
+    always_ff @(posedge clk_i) begin
+        if (rst_ni && wr_en_i) begin
+            $display("\n======================================================");
+            $display("ACCUMULATOR BRAM TILE 0 @ time %0t", $time);
+            for (r = 0; r < TT; r++) begin
+                $write("Row %0d :", r);
+                for (c = 0; c < TT; c++) begin
+                    addr = (0 << 6) + (r << 3) + c;
+                    $write(" %6h", accum_mem[addr]);
+                end
+                $write("\n");
             end
-
-            $write("\n");
+            $display("======================================================\n");
         end
-
-        $display("======================================================");
-        $display("");
-// $display("");
-  //      $display("======================================================");
-//        $display("ACCUMULATOR BRAM TILE %0d @ time %0t", wr_tile_i, $time);
-//        $display("ACCUMULATOR BRAM TILE 1 @ time %0t", $time);
-
-
-//        for (r = 0; r < TT; r++) begin
- //           $write("Row %0d :", r);
-
-  //          for (c = 0; c < TT; c++) begin
-  //              addr = (1 << 6) + (r << 3) + c;
-   //             $write(" %6h", accum_mem[addr]);
-  //          end
-//
-  //          $write("\n");
-  //      end
-
-  // //     $display("======================================================");
- //       $display("");
-// $display("");
- //       $display("======================================================");
-//        $display("ACCUMULATOR BRAM TILE %0d @ time %0t", wr_tile_i, $time);
-  //      $display("ACCUMULATOR BRAM TILE 31 @ time %0t", $time);
-
-
-   //     for (r = 0; r < TT; r++) begin
-  //          $write("Row %0d :", r);
-
- //           for (c = 0; c < TT; c++) begin
- //               addr = (31 << 6) + (r << 3) + c;
-  //              $write(" %6h", accum_mem[addr]);
-  //          end
-
-  //          $write("\n");
-   //     end
-
-   //     $display("======================================================");
-    //    $display("");
-
-
-    //end
-end
+    end
 
 endmodule
