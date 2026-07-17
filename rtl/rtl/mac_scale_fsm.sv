@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module mac_scale_fsm #(
-    parameter int NUM_GROUPS = 16
+    parameter int NUM_GROUPS = 32
 ) (
     input  logic                 clk_i,
     input  logic                 rst_ni,
@@ -23,7 +23,7 @@ module mac_scale_fsm #(
 
     // Patch 1: Scale datapath indexing outputs
     output logic [2:0]           scale_col_o,
-    output logic                 scale_row_sel_o
+    output logic [1:0]           scale_row_group_o
 );
 
     //--------------------------------------------------------------------------
@@ -42,7 +42,7 @@ module mac_scale_fsm #(
 
     // Patch 2: Index tracking registers
     logic [2:0]       scale_col_q;
-    logic             scale_row_sel_q;
+    logic [1:0]       scale_row_group_q;
 
     // Self-contained internal context storage registers
     logic [31:0]          act_scale_lo_q;
@@ -65,7 +65,7 @@ module mac_scale_fsm #(
             
             // Patch 3: Register reset for index signals
             scale_col_q       <= '0;
-            scale_row_sel_q   <= 1'b0;
+            scale_row_group_q <= '0;
 
             for (int r = 0; r < 8; r++) begin
                 for (int c = 0; c < 8; c++) begin
@@ -77,8 +77,8 @@ module mac_scale_fsm #(
             count_q <= count_d;
 
             // Update registered tracking copies along with the current count update
-            scale_col_q     <= count_d[3:1];
-            scale_row_sel_q <= count_d[0];
+            scale_col_q       <= count_d[2:0];
+            scale_row_group_q <= count_d[4:3];
 
             // Latch execution context exactly on the cycle the handshake matches
             if ((state_q == IDLE) && context_ready_i) begin
@@ -133,8 +133,8 @@ module mac_scale_fsm #(
 
     // Patch 2: Generate dynamic indexing directly mapping counter to active matrix groups
     always_comb begin
-        scale_col_o     = count_q[3:1]; // count_q >> 1
-        scale_row_sel_o = count_q[0];
+        scale_col_o       = count_q[2:0];
+        scale_row_group_o = count_q[4:3];
     end
 
 endmodule

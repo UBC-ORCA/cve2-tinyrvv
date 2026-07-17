@@ -24,7 +24,7 @@ module cve2_cf_mac_unit
 
     // CVE2 Pipeline execution Request Interface
     input  logic                      req_valid_i,
-    input  cve2_pkg::mac_op_e         cf_req_op_i,
+    input  cve2_pkg::mac_op_e          cf_req_op_i,
     input  logic [31:0]               req_instr_i,
     input  logic [31:0]               req_rs1_i,
     input  logic [31:0]               req_rs2_i,
@@ -37,7 +37,6 @@ module cve2_cf_mac_unit
     // Vector Register File Interface
     output logic [4:0]                mac_vrf_raddr_o,
     output logic [4:0]                mac_vrf_relem_o,
-//    output logic [2:0]                mac_vrf_relem_o,
     input  logic [31:0]               mac_vrf_rdata_i
 );
 
@@ -76,11 +75,11 @@ module cve2_cf_mac_unit
     //------------------------------------------------------------
     // Scale Processing Datapath Interconnect Intermediates
     //------------------------------------------------------------
-    logic [2:0] scale_col;    
-    logic       scale_row_sel;
+    logic [2:0] scale_col;
+    logic [1:0] scale_row_group; // Patch 2: Updated FSM connection name replacement
 
     // Selected tile values feeding scale units
-    logic signed [15:0] scale_tile_value [0:3];
+    logic signed [15:0] scale_tile_value [0:1]; // Patch 1: Changed to 2 units
 
     // Direct real-time pulse triggers out from controller
     logic [31:0]        act_scale_lo, act_scale_hi;
@@ -243,22 +242,18 @@ module cve2_cf_mac_unit
         .mv_mode_i            (mv_mode),
         .mv_even_col_idx_i    (mv_even_col_idx),
         .mv_odd_col_idx_i     (mv_odd_col_idx),
-        //.mv_data_o            (mv_data),
         .mv_row_idx_i         (mv_row_idx)
     );
 
-
-//TEMP CONVERT FOR MV2
-	assign mv_data =
+    // TEMP CONVERT FOR MV2
+    assign mv_data =
             {
                 scale_accum_tile [mv_row_idx][mv_odd_col_idx],
                 scale_accum_tile [mv_row_idx][mv_even_col_idx]
             };
 
-
-
     mac_scale_fsm #(
-        .NUM_GROUPS(16)
+        .NUM_GROUPS(32)
     ) u_scale_fsm (
         .clk_i                (clk_i),
         .rst_ni               (rst_ni),
@@ -271,47 +266,36 @@ module cve2_cf_mac_unit
         .tile_snapshot_i      (ctx_tile_snapshot),
         .scale_busy_o         (scale_busy),
         .scale_done_o         (scale_done),
-	.scale_col_o	      (scale_col),
-	.scale_row_sel_o      (scale_row_sel)
+        .scale_col_o          (scale_col),
+        .scale_row_group_o    (scale_row_group) // Patch 2: Updated connection
     );
 
     //------------------------------------------------------------
-    // SCALE TILE SELECTION
+    // SCALE TILE SELECTION (Patch 3)
     //
-    // Four scale units process one column at a time.
-    // Each unit receives one value from a row pair.
-    //
-    // scale_row_sel = 0:
-    //   rows 0,2,4,6
-    //
-    // scale_row_sel = 1:
-    //   rows 1,3,5,7
+    // Two scale units process one column at a time.
+    // Scale unit 0 processes rows 0-3.
+    // Scale unit 1 processes rows 4-7.
     //------------------------------------------------------------
-
     always_comb begin
-
+        // Scale unit 0: rows 0-3
         scale_tile_value[0] =
-            tile_snapshot[scale_row_sel ? 1 : 0][scale_col];
+            tile_snapshot[scale_row_group][scale_col];
 
+        // Scale unit 1: rows 4-7
         scale_tile_value[1] =
-            tile_snapshot[scale_row_sel ? 3 : 2][scale_col];
-
-        scale_tile_value[2] =
-            tile_snapshot[scale_row_sel ? 5 : 4][scale_col];
-
-        scale_tile_value[3] =
-            tile_snapshot[scale_row_sel ? 7 : 6][scale_col];
-
+            tile_snapshot[scale_row_group + 2'd4][scale_col];
     end
 
     //------------------------------------------------------------
-    // Processing Datapath Structures (Placeholders/Verification)
+    // Processing Datapath Structures (Patch 1)
     //------------------------------------------------------------
-    logic [15:0] scale_accum_in  [0:3];
-    logic [15:0] scale_accum_out [0:3];
-    logic [7:0]  scaleA          [0:3];
-    logic [7:0]  scaleB          [0:3];
+    logic [15:0] scale_accum_in  [0:1];
+    logic [15:0] scale_accum_out [0:1];
+    logic [7:0]  scaleA          [0:1];
+    logic [7:0]  scaleB          [0:1];
 
+    // Patch 4: Instantiating only two scale accumulators
     mac_scale_accum u_scale_accum0 (
         .tile_value(scale_tile_value[0]),
         .scaleA(scaleA[0]),
@@ -328,431 +312,288 @@ module cve2_cf_mac_unit
         .accumulator_out(scale_accum_out[1])
     );
 
-    mac_scale_accum u_scale_accum2 (
-        .tile_value(scale_tile_value[2]),
-        .scaleA(scaleA[2]),
-        .scaleB(scaleB[2]),
-        .accumulator(scale_accum_in[2]),
-        .accumulator_out(scale_accum_out[2])
-    );
+    always_comb begin
+        //------------------------------------------
+        // Activation scales (Patch 5)
+        //------------------------------------------
+        if (scale_row_group == 0) begin
+            scaleA[0] = ctx_act_scale_lo[7:0];
+            scaleA[1] = ctx_act_scale_lo[23:16];
+        end
+        else if (scale_row_group == 1) begin
+            scaleA[0] = ctx_act_scale_lo[15:8];
+            scaleA[1] = ctx_act_scale_lo[31:24];
+        end
+        else if (scale_row_group == 2) begin
+            scaleA[0] = ctx_act_scale_hi[7:0];
+            scaleA[1] = ctx_act_scale_hi[23:16];
+        end
+        else begin
+            scaleA[0] = ctx_act_scale_hi[15:8];
+            scaleA[1] = ctx_act_scale_hi[31:24];
+        end
 
-    mac_scale_accum u_scale_accum3 (
-        .tile_value(scale_tile_value[3]),
-        .scaleA(scaleA[3]),
-        .scaleB(scaleB[3]),
-        .accumulator(scale_accum_in[3]),
-        .accumulator_out(scale_accum_out[3])
-    );
-
-//E4M3 
-
-
-  //  e4m3_scale u_scale_accum0 (
-//        .acc_q14_2_in(scale_tile_value[0]),
-//        .a_scale_in(scaleA[0]),
-//        .w_scale_in(scaleB[0]),
-//        .bf16_in(scale_accum_in[0]),
-//        .bf16_out(scale_accum_out[0])
-//    );
-
- //   e4m3_scale u_scale_accum1 (
-//        .acc_q14_2_in(scale_tile_value[1]),
-//        .a_scale_in(scaleA[1]),
-//        .w_scale_in(scaleB[1]),
-//        .bf16_in(scale_accum_in[1]),
-//        .bf16_out(scale_accum_out[1])
- //   );
-
-//    e4m3_scale u_scale_accum2 (
-//        .acc_q14_2_in(scale_tile_value[2]),
-//        .a_scale_in(scaleA[2]),
-//        .w_scale_in(scaleB[2]),
-//        .bf16_in(scale_accum_in[2]),
-//        .bf16_out(scale_accum_out[2])
- //   );
-
-//    e4m3_scale u_scale_accum3 (
-//        .acc_q14_2_in(scale_tile_value[3]),
-//        .a_scale_in(scaleA[3]),
-//        .w_scale_in(scaleB[3]),
-//        .bf16_in(scale_accum_in[3]),
-//        .bf16_out(scale_accum_out[3])
-//    );
-
- //E4M3_end
-
-
-always_comb begin
-
-    //------------------------------------------
-    // Activation scales
-    //------------------------------------------
-
-    if (!scale_row_sel) begin
-        // rows 0,2,4,6
-        scaleA[0] = ctx_act_scale_lo[ 7: 0];
-        scaleA[1] = ctx_act_scale_lo[23:16];
-        scaleA[2] = ctx_act_scale_hi[ 7: 0];
-        scaleA[3] = ctx_act_scale_hi[23:16];
-    end
-    else begin
-        // rows 1,3,5,7
-        scaleA[0] = ctx_act_scale_lo[15: 8];
-        scaleA[1] = ctx_act_scale_lo[31:24];
-        scaleA[2] = ctx_act_scale_hi[15: 8];
-        scaleA[3] = ctx_act_scale_hi[31:24];
+        //------------------------------------------
+        // Weight scales (Patch 6)
+        //------------------------------------------
+        if (scale_col < 4) begin
+            scaleB[0] = ctx_weight_scale_lo[scale_col*8 +: 8];
+            scaleB[1] = ctx_weight_scale_lo[scale_col*8 +: 8];
+        end
+        else begin
+            scaleB[0] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
+            scaleB[1] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
+        end
     end
 
-    //------------------------------------------
-    // Weight scales
-    //------------------------------------------
-
-    if (scale_col < 4) begin
-        scaleB[0] = ctx_weight_scale_lo[ 7: 0];
-        scaleB[1] = ctx_weight_scale_lo[15: 8];
-        scaleB[2] = ctx_weight_scale_lo[23:16];
-        scaleB[3] = ctx_weight_scale_lo[31:24];
-    end
-    else begin
-        scaleB[0] = ctx_weight_scale_hi[ 7: 0];
-        scaleB[1] = ctx_weight_scale_hi[15: 8];
-        scaleB[2] = ctx_weight_scale_hi[23:16];
-        scaleB[3] = ctx_weight_scale_hi[31:24];
+    //------------------------------------------------------------
+    // Read two accumulator cells
+    //------------------------------------------------------------
+    always_comb begin
+        scale_accum_in[0] = scale_accum_tile[scale_row_group][scale_col];
+        scale_accum_in[1] = scale_accum_tile[scale_row_group + 4][scale_col];
     end
 
-end
+    // BRAM emulation here
+    logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
 
-//    always_comb begin
-  //      scaleA[0] = 8'h7F;  scaleA[1] = 8'h80;  scaleA[2] = 8'h7E;  scaleA[3] = 8'h80; //[stev] - need to collect these
-   //     scaleB[0] = 8'h7F;  scaleB[1] = 8'h7F;  scaleB[2] = 8'h7F;  scaleB[3] = 8'h80;
-    //    scale_accum_in[0] = 16'h4302; scale_accum_in[1] = 16'h4302; scale_accum_in[2] = 16'h4302; scale_accum_in[3] = 16'h4302;
-    //end
+    //------------------------------------------------------------
+    // Software BRAM model
+    // 8x8 accumulator tile
+    //------------------------------------------------------------
+    integer r, c;
 
-//to_RM
-//always_comb begin
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            for (r=0; r<TT; r++) begin
+                for (c=0; c<TT; c++) begin
+                    scale_accum_tile[r][c] <= 16'h0000;
+                end
+            end
+        end
+        else begin
+            // Patch 7: BRAM Update logic
+            if (scale_busy) begin
+                scale_accum_tile[scale_row_group][scale_col]     <= scale_accum_out[0];
+                scale_accum_tile[scale_row_group + 4][scale_col] <= scale_accum_out[1];
+            end
+        end
+    end
 
     // ------------------------------------------------------------
-    // Fake BF16 accumulator values
-    // Give each group a unique starting point
+    // Scale Accumulator Tile Dump (Updated for 2 scale units)
     // ------------------------------------------------------------
- //   scale_accum_in[0] = 16'h4300;
-//    scale_accum_in[1] = 16'h4400;
-//    scale_accum_in[2] = 16'h4500;
-//    scale_accum_in[3] = 16'h4600;
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
 
-//end
+            $display("");
+            $display("======================================================");
+            $display("[%0t] SCALE ACCUMULATOR", $time);
+            $display("======================================================");
 
-//------------------------------------------------------------
-// Read four accumulator cells
-//------------------------------------------------------------
+            $display("FSM:");
+            $display("  row_group=%0d col=%0d busy=%0b done=%0b",
+                     scale_row_group,
+                     scale_col,
+                     scale_busy,
+                     scale_done);
 
-always_comb begin
+            $display("");
 
-    if (!scale_row_sel) begin
+            $display("Selected MAC Tile:");
+            $display("  tile = {%0d, %0d}",
+                     scale_tile_value[0],
+                     scale_tile_value[1]);
 
-        scale_accum_in[0] = scale_accum_tile[0][scale_col];
-        scale_accum_in[1] = scale_accum_tile[2][scale_col];
-        scale_accum_in[2] = scale_accum_tile[4][scale_col];
-        scale_accum_in[3] = scale_accum_tile[6][scale_col];
+            $display("");
 
-    end
-    else begin
+            $display("Scale Factors:");
+            $display("  A = {%02x,%02x}",
+                     scaleA[0],
+                     scaleA[1]);
 
-        scale_accum_in[0] = scale_accum_tile[1][scale_col];
-        scale_accum_in[1] = scale_accum_tile[3][scale_col];
-        scale_accum_in[2] = scale_accum_tile[5][scale_col];
-        scale_accum_in[3] = scale_accum_tile[7][scale_col];
+            $display("  B = {%02x,%02x}",
+                     scaleB[0],
+                     scaleB[1]);
 
-    end
+            $display("");
 
-end
+            $display("Accumulator:");
+            $display("  IN  = {%04h,%04h}",
+                     scale_accum_in[0],
+                     scale_accum_in[1]);
 
-//BRAM emulation here
-logic signed [15:0] scale_accum_tile [0:TT-1][0:TT-1];
+            $display("  OUT = {%04h,%04h}",
+                     scale_accum_out[0],
+                     scale_accum_out[1]);
 
-//------------------------------------------------------------
-// Software BRAM model
-// 8x8 accumulator tile
-//------------------------------------------------------------
+            $display("");
 
-integer r,c;
+            $display("Accumulated BF16 Tile:");
 
-always_ff @(posedge clk_i or negedge rst_ni) begin
-
-    if (!rst_ni) begin
-
-        for (r=0; r<TT; r++) begin
-            for (c=0; c<TT; c++) begin
-                scale_accum_tile[r][c] <= 16'h0000;
+            for (int r = 0; r < TT; r++) begin
+                $write("Row %0d :", r);
+                for (int c = 0; c < TT; c++) begin
+                    $write(" %04h", scale_accum_tile[r][c]);
+                end
+                $write("\n");
             end
-        end
 
-    end
-    else begin
+            $display("======================================================");
+            $display("");
 
-        if (scale_busy) begin
-
-            if (!scale_row_sel) begin
-
-                scale_accum_tile[0][scale_col] <= scale_accum_out[0];
-                scale_accum_tile[2][scale_col] <= scale_accum_out[1];
-                scale_accum_tile[4][scale_col] <= scale_accum_out[2];
-                scale_accum_tile[6][scale_col] <= scale_accum_out[3];
-
-            end
-            else begin
-
-                scale_accum_tile[1][scale_col] <= scale_accum_out[0];
-                scale_accum_tile[3][scale_col] <= scale_accum_out[1];
-                scale_accum_tile[5][scale_col] <= scale_accum_out[2];
-                scale_accum_tile[7][scale_col] <= scale_accum_out[3];
-
-            end
         end
     end
-end
 
-//to_RM_end
-
-// --- [stev] ---
-// ------------------------------------------------------------
-// Scale Accumulator Tile Dump
-// ------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-
-        $display("");
-        $display("======================================================");
-        $display("[%0t] SCALE ACCUMULATOR", $time);
-        $display("======================================================");
-
-        $display("FSM:");
-        $display("  row_sel=%0d col=%0d busy=%0b done=%0b",
-                 scale_row_sel,
-                 scale_col,
-                 scale_busy,
-                 scale_done);
-
-        $display("");
-
-        $display("Selected MAC Tile:");
-        $display("  tile = {%0d, %0d, %0d, %0d}",
-                 scale_tile_value[0],
-                 scale_tile_value[1],
-                 scale_tile_value[2],
-                 scale_tile_value[3]);
-
-        $display("");
-
-        $display("Scale Factors:");
-        $display("  A = {%02x,%02x,%02x,%02x}",
-                 scaleA[0],
-                 scaleA[1],
-                 scaleA[2],
-                 scaleA[3]);
-
-        $display("  B = {%02x,%02x,%02x,%02x}",
-                 scaleB[0],
-                 scaleB[1],
-                 scaleB[2],
-                 scaleB[3]);
-
-        $display("");
-
-        $display("Accumulator:");
-        $display("  IN  = {%04h,%04h,%04h,%04h}",
-                 scale_accum_in[0],
-                 scale_accum_in[1],
-                 scale_accum_in[2],
-                 scale_accum_in[3]);
-
-        $display("  OUT = {%04h,%04h,%04h,%04h}",
-                 scale_accum_out[0],
-                 scale_accum_out[1],
-                 scale_accum_out[2],
-                 scale_accum_out[3]);
-
-        $display("");
-
-        $display("Accumulated BF16 Tile:");
-
-        for (int r = 0; r < TT; r++) begin
-            $write("Row %0d :", r);
-            for (int c = 0; c < TT; c++) begin
-                $write(" %04h", scale_accum_tile[r][c]);
-            end
-            $write("\n");
-        end
-
-        $display("======================================================");
-        $display("");
-
-    end
-end
-
-
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [SCALE] row_sel=%0b col=%0d rows={%0d,%0d,%0d,%0d} tile={%0d,%0d,%0d,%0d} acc_in={%04h,%04h,%04h,%04h} acc_out={%04h,%04h,%04h,%04h}",
-                 $time,
-                 scale_row_sel,
-                 scale_col,
-                 (scale_row_sel ? 1 : 0),
-                 (scale_row_sel ? 3 : 2),
-                 (scale_row_sel ? 5 : 4),
-                 (scale_row_sel ? 7 : 6),
-                 scale_tile_value[0],
-                 scale_tile_value[1],
-                 scale_tile_value[2],
-                 scale_tile_value[3],
-                 scale_accum_in[0],
-                 scale_accum_in[1],
-                 scale_accum_in[2],
-                 scale_accum_in[3],
-                 scale_accum_out[0],
-                 scale_accum_out[1],
-                 scale_accum_out[2],
-                 scale_accum_out[3]);
-    end
-end
-
-// ------------------------------------------------------------
-// Scale Context Debug Dump
-// ------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [SCALE_CTX] act_lo=%08x act_hi=%08x wt_lo=%08x wt_hi=%08x",
-                 $time,
-                 ctx_act_scale_lo,
-                 ctx_act_scale_hi,
-                 ctx_weight_scale_lo,
-                 ctx_weight_scale_hi);
-
-        $display("[%0t] [SCALE_CTX] ACT scales = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
-                 $time,
-                 ctx_act_scale_lo[7:0],
-                 ctx_act_scale_lo[15:8],
-                 ctx_act_scale_lo[23:16],
-                 ctx_act_scale_lo[31:24],
-                 ctx_act_scale_hi[7:0],
-                 ctx_act_scale_hi[15:8],
-                 ctx_act_scale_hi[23:16],
-                 ctx_act_scale_hi[31:24]);
-
-        $display("[%0t] [SCALE_CTX] WT scales  = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
-                 $time,
-                 ctx_weight_scale_lo[7:0],
-                 ctx_weight_scale_lo[15:8],
-                 ctx_weight_scale_lo[23:16],
-                 ctx_weight_scale_lo[31:24],
-                 ctx_weight_scale_hi[7:0],
-                 ctx_weight_scale_hi[15:8],
-                 ctx_weight_scale_hi[23:16],
-                 ctx_weight_scale_hi[31:24]);
-
-        $display("[%0t] [SCALE_SEL] row_sel=%0b col=%0d | scaleA={%02x,%02x,%02x,%02x} scaleB={%02x,%02x,%02x,%02x}",
-                 $time,
-                 scale_row_sel,
-                 scale_col,
-                 scaleA[0],
-                 scaleA[1],
-                 scaleA[2],
-                 scaleA[3],
-                 scaleB[0],
-                 scaleB[1],
-                 scaleB[2],
-                 scaleB[3]);
-    end
-end
-
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [MAC_VRF] raddr=v%0d relem=%0d rdata=%08x mac_en=%0b busy=%0b done=%0b",
-                 $time,
-                 mac_vrf_raddr_o,
-                 mac_vrf_relem_o,
-                 mac_vrf_rdata_i,
-                 mac_en,
-                 busy_o,
-                 done_o);
-    end
-end
-
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [MAC_MEM] req=%0b gnt=%0b addr=%08x we=%0b be=%0h wdata=%08x rvalid=%0b rdata=%08x err=%0b busy=%0b done=%0b mac_en=%0b",
-                 $time,
-                 data_req_o,
-                 data_gnt_i,
-                 data_addr_o,
-                 data_we_o,
-                 data_be_o,
-                 data_wdata_o,
-                 data_rvalid_i,
-                 data_rdata_i,
-                 data_err_i,
-                 busy_o,
-                 done_o,
-                 mac_en);
-    end
-end
-
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [MAC_MV] op=%0d mv_en=%0b mode=%0d row=%0d even_col=%0d odd_col=%0d",
-                 $time,
-                 cf_req_op_i,
-                 mv_en,
-                 mv_mode,
-                 mv_row_idx,
-                 mv_even_col_idx,
-                 mv_odd_col_idx);
-
-        if (mv_en) begin
-            $display("[%0t] [MAC_MV] DATA_OUT=%08x scalar_we=%0b scalar_waddr=x%0d",
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [SCALE] row_group=%0b col=%0d rows={%0d,%0d} tile={%0d,%0d} acc_in={%04h,%04h} acc_out={%04h,%04h}",
                      $time,
-                     mv_data,
-                     scalar_we_o,
-                     scalar_waddr_o);
+                     scale_row_group,
+                     scale_col,
+                     scale_row_group,
+                     (scale_row_group + 4),
+                     scale_tile_value[0],
+                     scale_tile_value[1],
+                     scale_accum_in[0],
+                     scale_accum_in[1],
+                     scale_accum_out[0],
+                     scale_accum_out[1]);
+        end
+    end
 
-            $display("[%0t] [MAC_MV] TILE[%0d][%0d]=%0d TILE[%0d][%0d]=%0d",
+    // ------------------------------------------------------------
+    // Scale Context Debug Dump
+    // ------------------------------------------------------------
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [SCALE_CTX] act_lo=%08x act_hi=%08x wt_lo=%08x wt_hi=%08x",
                      $time,
+                     ctx_act_scale_lo,
+                     ctx_act_scale_hi,
+                     ctx_weight_scale_lo,
+                     ctx_weight_scale_hi);
+
+            $display("[%0t] [SCALE_CTX] ACT scales = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
+                     $time,
+                     ctx_act_scale_lo[7:0],
+                     ctx_act_scale_lo[15:8],
+                     ctx_act_scale_lo[23:16],
+                     ctx_act_scale_lo[31:24],
+                     ctx_act_scale_hi[7:0],
+                     ctx_act_scale_hi[15:8],
+                     ctx_act_scale_hi[23:16],
+                     ctx_act_scale_hi[31:24]);
+
+            $display("[%0t] [SCALE_CTX] WT scales  = {%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x}",
+                     $time,
+                     ctx_weight_scale_lo[7:0],
+                     ctx_weight_scale_lo[15:8],
+                     ctx_weight_scale_lo[23:16],
+                     ctx_weight_scale_lo[31:24],
+                     ctx_weight_scale_hi[7:0],
+                     ctx_weight_scale_hi[15:8],
+                     ctx_weight_scale_hi[23:16],
+                     ctx_weight_scale_hi[31:24]);
+
+            $display("[%0t] [SCALE_SEL] row_group=%0b col=%0d | scaleA={%02x,%02x} scaleB={%02x,%02x}",
+                     $time,
+                     scale_row_group,
+                     scale_col,
+                     scaleA[0],
+                     scaleA[1],
+                     scaleB[0],
+                     scaleB[1]);
+        end
+    end
+
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [MAC_VRF] raddr=v%0d relem=%0d rdata=%08x mac_en=%0b busy=%0b done=%0b",
+                     $time,
+                     mac_vrf_raddr_o,
+                     mac_vrf_relem_o,
+                     mac_vrf_rdata_i,
+                     mac_en,
+                     busy_o,
+                     done_o);
+        end
+    end
+
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [MAC_MEM] req=%0b gnt=%0b addr=%08x we=%0b be=%0h wdata=%08x rvalid=%0b rdata=%08x err=%0b busy=%0b done=%0b mac_en=%0b",
+                     $time,
+                     data_req_o,
+                     data_gnt_i,
+                     data_addr_o,
+                     data_we_o,
+                     data_be_o,
+                     data_wdata_o,
+                     data_rvalid_i,
+                     data_rdata_i,
+                     data_err_i,
+                     busy_o,
+                     done_o,
+                     mac_en);
+        end
+    end
+
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [MAC_MV] op=%0d mv_en=%0b mode=%0d row=%0d even_col=%0d odd_col=%0d",
+                     $time,
+                     cf_req_op_i,
+                     mv_en,
+                     mv_mode,
                      mv_row_idx,
                      mv_even_col_idx,
-                     tile_snapshot[mv_row_idx][mv_even_col_idx],
-                     mv_row_idx,
-                     mv_odd_col_idx,
-                     tile_snapshot[mv_row_idx][mv_odd_col_idx]);
+                     mv_odd_col_idx);
+
+            if (mv_en) begin
+                $display("[%0t] [MAC_MV] DATA_OUT=%08x scalar_we=%0b scalar_waddr=x%0d",
+                         $time,
+                         mv_data,
+                         scalar_we_o,
+                         scalar_waddr_o);
+
+                $display("[%0t] [MAC_MV] TILE[%0d][%0d]=%0d TILE[%0d][%0d]=%0d",
+                         $time,
+                         mv_row_idx,
+                         mv_even_col_idx,
+                         tile_snapshot[mv_row_idx][mv_even_col_idx],
+                         mv_row_idx,
+                         mv_odd_col_idx,
+                         tile_snapshot[mv_row_idx][mv_odd_col_idx]);
+            end
         end
     end
-end
 
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        $display("[%0t] [CTX] snap=%0b act=%0b wt=%0b ready=%0b accept=%0b busy=%0b done=%0b",
-                 $time,
-                 snapshot_valid_q,
-                 act_scale_valid_q,
-                 weight_scale_valid_q,
-                 context_ready,
-                 context_accept,
-                 scale_busy,
-                 scale_done);
-    end
-end
-
-always_ff @(posedge clk_i) begin
-    if (snapshot_valid) begin
-        $display("[%0t] Snapshot captured", $time);
-
-        for (int r=0; r<TT; r++) begin
-            $write("Row %0d :", r);
-            for (int c=0; c<TT; c++)
-                $write(" %6d", tile_snapshot[r][c]);
-            $write("\n");
+    always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+            $display("[%0t] [CTX] snap=%0b act=%0b wt=%0b ready=%0b accept=%0b busy=%0b done=%0b",
+                     $time,
+                     snapshot_valid_q,
+                     act_scale_valid_q,
+                     weight_scale_valid_q,
+                     context_ready,
+                     context_accept,
+                     scale_busy,
+                     scale_done);
         end
     end
-end
-// --- [end] ---
+
+    always_ff @(posedge clk_i) begin
+        if (snapshot_valid) begin
+            $display("[%0t] Snapshot captured", $time);
+
+            for (int r=0; r<TT; r++) begin
+                $write("Row %0d :", r);
+                for (int c=0; c<TT; c++)
+                    $write(" %6d", tile_snapshot[r][c]);
+                $write("\n");
+            end
+        end
+    end
 
 endmodule
