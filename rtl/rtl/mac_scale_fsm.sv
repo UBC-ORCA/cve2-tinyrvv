@@ -19,6 +19,7 @@ module mac_scale_fsm #(
 
     // Handshake status signals back to controller
     output logic                 scale_busy_o,
+    output logic                 scale_write_o, // High strictly during BRAM write phase
     output logic                 scale_done_o,
 
     // Scale datapath indexing outputs
@@ -41,10 +42,6 @@ module mac_scale_fsm #(
     localparam int CNT_W = $clog2(NUM_GROUPS);
     logic [CNT_W-1:0] count_q, count_d;
 
-    // Index tracking registers
-    logic [2:0]       scale_col_q;
-    logic [1:0]       scale_row_group_q;
-
     // Self-contained internal context storage registers
     logic [31:0]          act_scale_lo_q;
     logic [31:0]          act_scale_hi_q;
@@ -63,9 +60,6 @@ module mac_scale_fsm #(
             act_scale_hi_q    <= '0;
             weight_scale_lo_q <= '0;
             weight_scale_hi_q <= '0;
-            
-            scale_col_q       <= '0;
-            scale_row_group_q <= '0;
 
             for (int r = 0; r < 8; r++) begin
                 for (int c = 0; c < 8; c++) begin
@@ -75,12 +69,6 @@ module mac_scale_fsm #(
         end else begin
             state_q <= state_d;
             count_q <= count_d;
-
-            // Latch current scaling coordinates during READ to drive stable outputs in WRITE
-            if (state_q == READ) begin
-                scale_col_q       <= count_q[2:0];
-                scale_row_group_q <= count_q[4:3];
-            end
 
             // Latch execution context exactly on the cycle the handshake matches
             if ((state_q == IDLE) && context_ready_i) begin
@@ -109,10 +97,12 @@ module mac_scale_fsm #(
             end
 
             READ: begin
+                // Synchronous BRAM Read step complete, advance to write calculation phase
                 state_d = WRITE;
             end
 
             WRITE: begin
+                // Commit write element and evaluate sequence bounds
                 if (count_q == (NUM_GROUPS[CNT_W-1:0] - 1'b1)) begin
                     state_d = DONE;
                 end else begin
@@ -136,10 +126,11 @@ module mac_scale_fsm #(
     //--------------------------------------------------------------------------
     assign context_accept_o = (state_q == IDLE) && context_ready_i;
     assign scale_busy_o      = (state_q == READ) || (state_q == WRITE);
+    assign scale_write_o     = (state_q == WRITE);
     assign scale_done_o      = (state_q == DONE);
 
-    // Coordinates remain stable for the scaler and memory interfaces during WRITE
-    assign scale_col_o       = scale_col_q;
-    assign scale_row_group_o = scale_row_group_q;
+    // Drive coordinates combinational-direct from count tracking to match across both cycles
+    assign scale_col_o       = count_q[2:0];
+    assign scale_row_group_o = count_q[4:3];
 
 endmodule

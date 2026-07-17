@@ -61,7 +61,7 @@ module cve2_cf_mac_unit
     assign mv_row  = req_instr_i[19:15];
     assign mv_pair = req_instr_i[24:20];
 
-    logic        mv_en;
+    logic  map_mv_en;
     logic [1:0]  mv_mode;   
     logic [2:0]  mv_even_col_idx;
     logic [2:0]  mv_odd_col_idx;
@@ -106,6 +106,7 @@ module cve2_cf_mac_unit
     logic                context_ready;
     logic                context_accept;
     logic                scale_busy;
+    logic                scale_write;
     logic                scale_done;
 
     // Assemble persistent context assembly status
@@ -181,19 +182,20 @@ module cve2_cf_mac_unit
 
     always_comb begin
         if (scale_busy) begin
-            // FSM Port mapping priorities for internal post-scale collection passes
+            // Ports hold stable matched coordinates driven entirely by FSM logic
             bram_rd_en   = 1'b1;
-            bram_rd_tile = 5'b0; // Default active computational cluster target
-            bram_rd_row  = scale_row_group; // Port 0 uses lower base offsets
+            bram_rd_tile = 5'b0; 
+            bram_rd_row  = scale_row_group; 
             bram_rd_col  = scale_col;
 
-            bram_wr_en   = 1'b1;
+            // Commit write strictly during FSM WRITE phase to obey 1-cycle pipeline delay
+            bram_wr_en   = scale_write;
             bram_wr_tile = 5'b0;
             bram_wr_row  = scale_row_group;
             bram_wr_col  = scale_col;
             bram_wr_data = scale_accum_out[0];
         end else begin
-            // Relinquish control authority to master controller pipeline operations (e.g. OP_MAC_BIAS)
+            // Relinquish control authority to master controller pipeline operations
             bram_rd_en   = ctrl_accum_rd_en;
             bram_rd_tile = ctrl_accum_rd_tile;
             bram_rd_row  = ctrl_accum_rd_row;
@@ -256,7 +258,7 @@ module cve2_cf_mac_unit
         .act_vector_o         (act_vector),
         .weight_vector_o      (weight_vector),
         .mac_vrf_rdata_i      (mac_vrf_rdata_i),
-        .mv_en_o              (mv_en),
+        .mv_en_o              (map_mv_en),
         .mv_mode_o            (mv_mode),
         .mv_even_col_idx_o    (mv_even_col_idx),
         .mv_odd_col_idx_o     (mv_odd_col_idx),
@@ -302,14 +304,13 @@ module cve2_cf_mac_unit
         .act_i                (act_vector),
         .wt_i                 (weight_vector),
         .accum_o              (tile_snapshot),
-        .mv_en_i              (mv_en),
+        .mv_en_i              (map_mv_en),
         .mv_mode_i            (mv_mode),
         .mv_even_col_idx_i    (mv_even_col_idx),
         .mv_odd_col_idx_i     (mv_odd_col_idx),
         .mv_row_idx_i         (mv_row_idx)
     );
 
-    // Structural coordinates addressable physical storage instance
     mac_accum_bram u_accum_bram (
         .clk_i                (clk_i),
         .rst_ni               (rst_ni),
@@ -325,7 +326,6 @@ module cve2_cf_mac_unit
         .wr_data_i            (bram_wr_data)
     );
 
-    // Structural extraction mapping assignments for cross-lane moves
     assign mv_data =
             {
                 tile_snapshot[mv_row_idx][mv_odd_col_idx],
@@ -345,17 +345,18 @@ module cve2_cf_mac_unit
         .weight_scale_hi_i    (ctx_weight_scale_hi),
         .tile_snapshot_i      (ctx_tile_snapshot),
         .scale_busy_o         (scale_busy),
+        .scale_write_o        (scale_write),
         .scale_done_o         (scale_done),
         .scale_col_o          (scale_col),
         .scale_row_group_o    (scale_row_group) 
     );
 
     //------------------------------------------------------------
-    // SCALE TILE SELECTION
+    // SCALE TILE SELECTION (Using ctx stable registers)
     //------------------------------------------------------------
     always_comb begin
-        scale_tile_value[0] = tile_snapshot[scale_row_group][scale_col];
-        scale_tile_value[1] = tile_snapshot[scale_row_group + 2'd4][scale_col];
+        scale_tile_value[0] = ctx_tile_snapshot[scale_row_group][scale_col];
+        scale_tile_value[1] = ctx_tile_snapshot[scale_row_group + 2'd4][scale_col];
     end
 
     //------------------------------------------------------------
@@ -423,7 +424,6 @@ module cve2_cf_mac_unit
     //------------------------------------------------------------
     always_ff @(posedge clk_i) begin
         if (rst_ni) begin
-            // 1. Log New Incoming Execution Requests
             if (req_valid_i && req_ready_o) begin
                 $display("[CVE2_MAC_DEBUG] [%0t ns] --- NEW INSTRUCTION EXECUTING ---", $time);
                 $display("[CVE2_MAC_DEBUG] Opcode Type: %s | Instr: 32'h%h", cf_req_op_i.name(), req_instr_i);
@@ -431,14 +431,12 @@ module cve2_cf_mac_unit
                 $display("[CVE2_MAC_DEBUG] Target Weight Linear Memory Addr: 32'h%h", weight_addr);
             end
 
-            // 2. Log Scalar Moves out of the Matrix Array
-            if (mv_en) begin
+            if (map_mv_en) begin
                 $display("[CVE2_MAC_DEBUG] [%0t ns] SCALAR MOVE DETECTED:", $time);
                 $display("[CVE2_MAC_DEBUG] Mode=%0d | RowIdx=%0d | ColPairs={%0d, %0d} -> WAddr=5'd%0d | WData=32'h%h",
                          mv_mode, mv_row_idx, mv_even_col_idx, mv_odd_col_idx, scalar_waddr_o, scalar_wdata_o);
             end
 
-            // 3. Log Full Array Snapshots on Processing Handshakes
             if (snapshot_valid) begin
                 $display("[CVE2_MAC_DEBUG] [%0t ns] --- CAPTURED 8x8 ARRAY SNAPSHOT MATRIX ---", $time);
                 for (int r = 0; r < TT; r++) begin
@@ -450,7 +448,6 @@ module cve2_cf_mac_unit
                 $display("[CVE2_MAC_DEBUG] Weight Scales captured: LO=32'h%h | HI=32'h%h", weight_scale_lo, weight_scale_hi);
             end
 
-            // 4. Log Real-time Iterative Scaler and BRAM Write Operations
             if (scale_busy) begin
                 $display("[CVE2_MAC_DEBUG] [%0t ns] SCALE ELEMENT OPERATION:", $time);
                 $display("[CVE2_MAC_DEBUG]   FSM Location: RowGroup=%0d | Col=%0d", scale_row_group, scale_col);
@@ -463,7 +460,6 @@ module cve2_cf_mac_unit
                 end
             end
             
-            // 5. Log Direct System BIAS Updates to the Storage Cells
             if (!scale_busy && bram_wr_en) begin
                 $display("[CVE2_MAC_DEBUG] [%0t ns] DIRECT BIAS ACCUMULATOR WRITE OVERRIDE:", $time);
                 $display("[CVE2_MAC_DEBUG]   Target Address Coordinates -> Tile=%0d | Row=%0d | Col=%0d | Payload=16'h%h", 
