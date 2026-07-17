@@ -1402,6 +1402,22 @@ instruction format
        (0 << 7)               | \
        CUSTOM2)
 
+// accBank(tile): select the current accumulator bank (funct7=0x0D, CUSTOM2)
+// rs1[4:0] = tile
+#define ACCBANK(rs1) \
+.word (((0x0D & 0x7F) << 25) | \
+       (0 << 20)              | \
+       (((rs1) & 0x1F) << 15) | \
+       (0 << 12)              | \
+       (0 << 7)               | \
+       CUSTOM2)
+
+.globl acc_bank
+acc_bank:
+    # a0 = tile -> rs1[4:0]
+    ACCBANK(10)
+    ret
+
 
 #
 # a0 = tile
