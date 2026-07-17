@@ -116,21 +116,62 @@ module mac_accum_bram (
     end
 
     // Display Array Monitor helper logic
-    integer r, c, addr;
-    always_ff @(posedge clk_i) begin
-        if (rst_ni && wr_en_i) begin
-            $display("\n======================================================");
-            $display("ACCUMULATOR BRAM TILE 0 @ time %0t", $time);
-            for (r = 0; r < TT; r++) begin
-                $write("Row %0d :", r);
-                for (c = 0; c < TT; c++) begin
-                    addr = (0 << 6) + (r << 3) + c;
-                    $write(" %6h", accum_mem[addr]);
-                end
-                $write("\n");
-            end
-            $display("======================================================\n");
-        end
-    end
+integer r, c, addr;
 
+always_ff @(posedge clk_i) begin
+    //if (rst_ni && wr_en_i) begin
+
+        //--------------------------------------------------
+        // Tile 0
+        //--------------------------------------------------
+        $display("\n======================================================");
+        $display("ACCUMULATOR BRAM TILE 0 @ time %0t", $time);
+
+        for (r = 0; r < TT; r++) begin
+            $write("Row %0d :", r);
+            for (c = 0; c < TT; c++) begin
+                addr = (0 << 6) + (r << 3) + c;
+                $write(" %6h", accum_mem[addr]);
+            end
+            $write("\n");
+        end
+
+        $display("======================================================");
+
+
+        //--------------------------------------------------
+        // Tile 1
+        //--------------------------------------------------
+        $display("ACCUMULATOR BRAM TILE 1 @ time %0t", $time);
+
+        for (r = 0; r < TT; r++) begin
+            $write("Row %0d :", r);
+            for (c = 0; c < TT; c++) begin
+                addr = (1 << 6) + (r << 3) + c;
+                $write(" %6h", accum_mem[addr]);
+            end
+            $write("\n");
+        end
+
+        $display("======================================================");
+
+
+        //--------------------------------------------------
+        // Tile 31
+        //--------------------------------------------------
+        $display("ACCUMULATOR BRAM TILE 31 @ time %0t", $time);
+
+        for (r = 0; r < TT; r++) begin
+            $write("Row %0d :", r);
+            for (c = 0; c < TT; c++) begin
+                addr = (31 << 6) + (r << 3) + c;
+                $write(" %6h", accum_mem[addr]);
+            end
+            $write("\n");
+        end
+
+        $display("======================================================\n");
+
+    //end
+end
 endmodule

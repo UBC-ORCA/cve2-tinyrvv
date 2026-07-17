@@ -21,7 +21,7 @@ module cve2_cf_mac_unit
     input  logic                        rst_ni,
 
     input  logic                        req_valid_i,
-    input  cve2_pkg::mac_op_e           cf_req_op_i,
+    input  cve2_pkg::mac_op_e            cf_req_op_i,
     input  logic [31:0]                 req_instr_i,
     input  logic [31:0]                 req_rs1_i,
     input  logic [31:0]                 req_rs2_i,
@@ -79,11 +79,19 @@ module cve2_cf_mac_unit
     logic                act_scale_valid_q;
     logic                weight_scale_valid_q;
 
+    // Inbound staged registers (Pending context holding)
     logic [31:0]        ctx_act_scale_lo;
     logic [31:0]        ctx_act_scale_hi;
     logic [31:0]        ctx_weight_scale_lo;
     logic [31:0]        ctx_weight_scale_hi;
     logic signed [15:0] ctx_tile_snapshot [0:TT-1][0:TT-1];
+
+    // Execution isolated registers (Active scale datapath context)
+    logic [31:0]        scale_act_lo_q;
+    logic [31:0]        scale_act_hi_q;
+    logic [31:0]        scale_weight_lo_q;
+    logic [31:0]        scale_weight_hi_q;
+    logic signed [15:0] scale_tile_snapshot_q [0:TT-1][0:TT-1];
 
     logic                context_ready;
     logic                context_accept;
@@ -93,6 +101,7 @@ module cve2_cf_mac_unit
 
     assign context_ready = snapshot_valid_q && act_scale_valid_q && weight_scale_valid_q;
 
+    // Staging Context Logic (Tightened capture mechanics)
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             snapshot_valid_q     <= 1'b0;
@@ -102,18 +111,18 @@ module cve2_cf_mac_unit
             ctx_act_scale_hi     <= '0;
             ctx_weight_scale_lo  <= '0;
             ctx_weight_scale_hi  <= '0;
-	    ctx_tile_snapshot    <= '{default: '{default: '0}};
+            ctx_tile_snapshot    <= '{default: '{default: '0}};
         end else begin
-            if (snapshot_valid && !scale_busy) begin
+            if (snapshot_valid && !snapshot_valid_q) begin
                 snapshot_valid_q  <= 1'b1;
                 ctx_tile_snapshot <= tile_snapshot;
             end
-            if (act_scale_ready) begin
+            if (act_scale_ready && !act_scale_valid_q) begin
                 act_scale_valid_q <= 1'b1;
                 ctx_act_scale_lo  <= act_scale_lo;
                 ctx_act_scale_hi  <= act_scale_hi;
             end
-            if (weight_scale_ready) begin
+            if (weight_scale_ready && !weight_scale_valid_q) begin
                 weight_scale_valid_q <= 1'b1;
                 ctx_weight_scale_lo  <= weight_scale_lo;
                 ctx_weight_scale_hi  <= weight_scale_hi;
@@ -123,6 +132,23 @@ module cve2_cf_mac_unit
                 act_scale_valid_q    <= 1'b0;
                 weight_scale_valid_q <= 1'b0;
             end
+        end
+    end
+
+    // Scaler Private Isolated Context Latching
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            scale_act_lo_q        <= '0;
+            scale_act_hi_q        <= '0;
+            scale_weight_lo_q     <= '0;
+            scale_weight_hi_q     <= '0;
+            scale_tile_snapshot_q <= '{default: '{default: '0}};
+        end else if (context_accept) begin
+            scale_act_lo_q        <= ctx_act_scale_lo;
+            scale_act_hi_q        <= ctx_act_scale_hi;
+            scale_weight_lo_q     <= ctx_weight_scale_lo;
+            scale_weight_hi_q     <= ctx_weight_scale_hi;
+            scale_tile_snapshot_q <= ctx_tile_snapshot;
         end
     end
 
@@ -139,7 +165,7 @@ module cve2_cf_mac_unit
     logic [4:0]  bram_wr_tile;
     logic [2:0]  bram_wr_row;
     logic [2:0]  bram_wr_col;
-    logic [31:0] bram_wr_data; // Expanded write data interconnect path (32-bit layout)
+    logic [31:0] bram_wr_data; 
 
     logic        ctrl_accum_rd_en;
     logic [4:0]  ctrl_accum_rd_tile;
@@ -166,7 +192,7 @@ module cve2_cf_mac_unit
             bram_wr_tile = 5'b0;
             bram_wr_row  = {scale_row_group, 1'b0}; 
             bram_wr_col  = scale_col;
-            bram_wr_data = {scale_accum_out[1], scale_accum_out[0]}; // Concurrent packing layout
+            bram_wr_data = {scale_accum_out[1], scale_accum_out[0]}; 
         end else begin
             bram_rd_en   = ctrl_accum_rd_en;
             bram_rd_tile = ctrl_accum_rd_tile;
@@ -177,7 +203,7 @@ module cve2_cf_mac_unit
             bram_wr_tile = ctrl_accum_wr_tile;
             bram_wr_row  = ctrl_accum_wr_row;
             bram_wr_col  = ctrl_accum_wr_col;
-            bram_wr_data = {16'b0, ctrl_accum_wr_data}; // Scalar mode defaults to single-element assignments
+            bram_wr_data = {16'b0, ctrl_accum_wr_data}; 
         end
     end
 
@@ -321,9 +347,10 @@ module cve2_cf_mac_unit
         .scale_row_group_o    (scale_row_group) 
     );
 
+    // Active scale datapath logic using decoupled scale registers
     always_comb begin
-        scale_tile_value[0] = ctx_tile_snapshot[scale_row_group][scale_col];
-        scale_tile_value[1] = ctx_tile_snapshot[scale_row_group + 2'd4][scale_col];
+        scale_tile_value[0] = scale_tile_snapshot_q[scale_row_group][scale_col];
+        scale_tile_value[1] = scale_tile_snapshot_q[scale_row_group + 2'd4][scale_col];
     end
 
     logic [7:0]  scaleA          [0:1];
@@ -347,29 +374,29 @@ module cve2_cf_mac_unit
 
     always_comb begin
         if (scale_row_group == 0) begin
-            scaleA[0] = ctx_act_scale_lo[7:0];
-            scaleA[1] = ctx_act_scale_lo[23:16];
+            scaleA[0] = scale_act_lo_q[7:0];
+            scaleA[1] = scale_act_lo_q[23:16];
         end
         else if (scale_row_group == 1) begin
-            scaleA[0] = ctx_act_scale_lo[15:8];
-            scaleA[1] = ctx_act_scale_lo[31:24];
+            scaleA[0] = scale_act_lo_q[15:8];
+            scaleA[1] = scale_act_lo_q[31:24];
         end
         else if (scale_row_group == 2) begin
-            scaleA[0] = ctx_act_scale_hi[7:0];
-            scaleA[1] = ctx_act_scale_hi[23:16];
+            scaleA[0] = scale_act_hi_q[7:0];
+            scaleA[1] = scale_act_hi_q[23:16];
         end
         else begin
-            scaleA[0] = ctx_act_scale_hi[15:8];
-            scaleA[1] = ctx_act_scale_hi[31:24];
+            scaleA[0] = scale_act_hi_q[15:8];
+            scaleA[1] = scale_act_hi_q[31:24];
         end
 
         if (scale_col < 4) begin
-            scaleB[0] = ctx_weight_scale_lo[scale_col*8 +: 8];
-            scaleB[1] = ctx_weight_scale_lo[scale_col*8 +: 8];
+            scaleB[0] = scale_weight_lo_q[scale_col*8 +: 8];
+            scaleB[1] = scale_weight_lo_q[scale_col*8 +: 8];
         end
         else begin
-            scaleB[0] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
-            scaleB[1] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
+            scaleB[0] = scale_weight_hi_q[(scale_col-4)*8 +: 8];
+            scaleB[1] = scale_weight_hi_q[(scale_col-4)*8 +: 8];
         end
     end
 
@@ -388,5 +415,134 @@ module cve2_cf_mac_unit
             end
         end
     end
+
+//------------------------------------------------------------
+// Scale Context Debug
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        if (context_ready) begin
+            $display("");
+            $display("======================================================");
+            $display("[SCALE_CONTEXT] [%0t ns]", $time);
+            $display("ACT_SCALE_LO    = %h", ctx_act_scale_lo);
+            $display("ACT_SCALE_HI    = %h", ctx_act_scale_hi);
+            $display("WEIGHT_SCALE_LO = %h", ctx_weight_scale_lo);
+            $display("WEIGHT_SCALE_HI = %h", ctx_weight_scale_hi);
+
+            for (int r=0; r<TT; r++) begin
+                $write("Tile Row %0d :",r);
+
+                for (int c=0; c<TT; c++) begin
+                    $write(" %6h",ctx_tile_snapshot[r][c]);
+                end
+
+                $write("\n");
+            end
+
+            $display("======================================================");
+            $display("");
+        end
+    end
+end
+
+//------------------------------------------------------------
+// Scale Datapath Debug (Updated to follow private registers)
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        if (scale_busy) begin
+
+            $display("");
+            $display("------------------------------------------------------");
+            $display("[SCALE_DEBUG] [%0t ns]",$time);
+
+            $display("Row Group        = %0d",scale_row_group);
+            $display("Column           = %0d",scale_col);
+
+            $display("Tile Value Low   = %0d (0x%h)",
+                        $signed(scale_tile_value[0]),
+                        scale_tile_value[0]);
+
+            $display("Tile Value High  = %0d (0x%h)",
+                        $signed(scale_tile_value[1]),
+                        scale_tile_value[1]);
+
+            $display("Scale A Low      = 0x%h",scaleA[0]);
+            $display("Scale A High     = 0x%h",scaleA[1]);
+
+            $display("Scale B Low      = 0x%h",scaleB[0]);
+            $display("Scale B High     = 0x%h",scaleB[1]);
+
+            $display("Accum In Low     = 0x%h",
+                        scale_accum_in[0]);
+
+            $display("Accum In High    = 0x%h",
+                        scale_accum_in[1]);
+
+            $display("Accum Out Low    = 0x%h",
+                        scale_accum_out[0]);
+
+            $display("Accum Out High   = 0x%h",
+                        scale_accum_out[1]);
+
+            $display("------------------------------------------------------");
+            $display("");
+
+        end
+    end
+end
+
+//------------------------------------------------------------
+// Scale BRAM Write Debug
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni) begin
+        if (scale_write) begin
+
+            $display("");
+            $display("######################################################");
+            $display("[SCALE_WRITE] [%0t ns]",$time);
+
+            $display("Count");
+            $display("Row Group = %0d",scale_row_group);
+            $display("Column    = %0d",scale_col);
+
+            $display("");
+            $display("BRAM WRITE");
+
+            $display("Tile      = %0d",bram_wr_tile);
+            $display("Row Pair  = {%0d,%0d}",
+                        bram_wr_row,
+                        bram_wr_row+1);
+
+            $display("Column    = %0d",
+                        bram_wr_col);
+
+            $display("");
+
+            $display("WRITE LOW");
+            $display("Data      = 0x%h (%0d)",
+                        bram_wr_data[15:0],
+                        $signed(bram_wr_data[15:0]));
+
+            $display("");
+
+            $display("WRITE HIGH");
+            $display("Data      = 0x%h (%0d)",
+                        bram_wr_data[31:16],
+                        $signed(bram_wr_data[31:16]));
+
+            $display("");
+
+            $display("Packed Write = 0x%08h",
+                        bram_wr_data);
+
+            $display("######################################################");
+            $display("");
+
+        end
+    end
+end
 
 endmodule
