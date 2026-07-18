@@ -373,8 +373,8 @@ module cve2_cf_mac_unit
     // Active scale datapath logic using decoupled scale registers
     always_comb begin
 
-// 	scale_tile_value[0] = scale_tile_snapshot_q[{scale_row_group,1'b0}][scale_col];
-//    	scale_tile_value[1] = scale_tile_snapshot_q[{scale_row_group,1'b0}+1][scale_col];
+ 	//scale_tile_value[0] = scale_tile_snapshot_q[{scale_row_group,1'b0}][scale_col];
+    	//scale_tile_value[1] = scale_tile_snapshot_q[{scale_row_group,1'b0}+1][scale_col];
 
  	scale_tile_value[0] = ctx_tile_snapshot[{scale_row_group,1'b0}][scale_col];
     	scale_tile_value[1] = ctx_tile_snapshot[{scale_row_group,1'b0}+1][scale_col];
@@ -399,33 +399,57 @@ module cve2_cf_mac_unit
         .accumulator_out(scale_accum_out[1])
     );
 
-    always_comb begin
-        if (scale_row_group == 0) begin
-            scaleA[0] = scale_act_lo_q[7:0];
-            scaleA[1] = scale_act_lo_q[23:16];
-        end
-        else if (scale_row_group == 1) begin
-            scaleA[0] = scale_act_lo_q[15:8];
-            scaleA[1] = scale_act_lo_q[31:24];
-        end
-        else if (scale_row_group == 2) begin
-            scaleA[0] = scale_act_hi_q[7:0];
-            scaleA[1] = scale_act_hi_q[23:16];
-        end
-        else begin
-            scaleA[0] = scale_act_hi_q[15:8];
-            scaleA[1] = scale_act_hi_q[31:24];
+//SCALE
+always_comb begin
+
+    case(scale_row_group)
+
+        2'd0: begin
+            // rows 0,1
+            scaleA[0] = ctx_act_scale_lo[7:0];
+            scaleA[1] = ctx_act_scale_lo[15:8];
         end
 
-        if (scale_col < 4) begin
-            scaleB[0] = scale_weight_lo_q[scale_col*8 +: 8];
-            scaleB[1] = scale_weight_lo_q[scale_col*8 +: 8];
+
+        2'd1: begin
+            // rows 2,3
+            scaleA[0] = ctx_act_scale_lo[23:16];
+            scaleA[1] = ctx_act_scale_lo[31:24];
         end
-        else begin
-            scaleB[0] = scale_weight_hi_q[(scale_col-4)*8 +: 8];
-            scaleB[1] = scale_weight_hi_q[(scale_col-4)*8 +: 8];
+
+
+        2'd2: begin
+            // rows 4,5
+            scaleA[0] = ctx_act_scale_hi[7:0];
+            scaleA[1] = ctx_act_scale_hi[15:8];
         end
+
+
+        2'd3: begin
+            // rows 6,7
+            scaleA[0] = ctx_act_scale_hi[23:16];
+            scaleA[1] = ctx_act_scale_hi[31:24];
+        end
+
+    endcase
+
+
+    if(scale_col < 4) begin
+
+        scaleB[0] = ctx_weight_scale_lo[scale_col*8 +: 8];
+        scaleB[1] = ctx_weight_scale_lo[scale_col*8 +: 8];
+
     end
+    else begin
+
+        scaleB[0] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
+        scaleB[1] = ctx_weight_scale_hi[(scale_col-4)*8 +: 8];
+
+    end
+
+end
+
+//SCALE_end
 
     // Unpack the 32-bit read line into individual accumulators
     always_comb begin
@@ -433,294 +457,405 @@ module cve2_cf_mac_unit
         scale_accum_in[1] = bram_rd_data[31:16]; 
     end
 
-    always_ff @(posedge clk_i) begin
-        if (rst_ni) begin
-            if (req_valid_i && req_ready_o) begin
-                $display("[CVE2_MAC_DEBUG] [%0t ns] --- NEW INSTRUCTION EXECUTING ---", $time);
-                $display("[CVE2_MAC_DEBUG] Opcode Type: %s | Instr: 32'h%h", cf_req_op_i.name(), req_instr_i);
-                $display("[CVE2_MAC_DEBUG] RS1 (Weight Base): 32'h%h | RS2: 32'h%h", req_rs1_i, req_rs2_i);
+//DEBUG
+//------------------------------------------------------------
+// Unified Scale Accumulation Trace Debug
+//
+// Purpose:
+//   Track:
+//      MAC snapshot
+//          ->
+//      BF16 scaled value
+//          +
+//      BRAM previous value
+//          ->
+//      BRAM new value
+//
+//   This specifically verifies:
+//
+//      v0: 0    + 4410 = 4410
+//      v1: 4410 + 4410 = 4490
+//
+//------------------------------------------------------------
+
+logic [31:0] scale_fold_count;
+logic [31:0] scale_context_count;
+
+
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if(!rst_ni) begin
+        scale_fold_count    <= 32'd0;
+        scale_context_count <= 32'd0;
+    end
+    else begin
+
+        if(context_accept) begin
+            scale_fold_count <= 32'd0;
+            scale_context_count <= scale_context_count + 1'b1;
+        end
+
+        if(scale_write)
+            scale_fold_count <= scale_fold_count + 1'b1;
+
+    end
+end
+
+
+
+always_ff @(posedge clk_i) begin
+
+    if(rst_ni && scale_write) begin
+
+
+        $display("");
+        $display("");
+        $display("==============================================================");
+        $display("[SCALE_ACCUM_TRACE]  TIME=%0t ns",$time);
+        $display("==============================================================");
+
+
+        //--------------------------------------------------------
+        // Context information
+        //--------------------------------------------------------
+
+        $display("");
+        $display("CONTEXT");
+        $display("--------------------------------------------------------------");
+
+        $display("Context ID       = %0d",
+                 scale_context_count);
+
+        $display("Fold Count       = %0d",
+                 scale_fold_count);
+
+
+
+        //--------------------------------------------------------
+        // BRAM bank / address
+        //--------------------------------------------------------
+
+        $display("");
+        $display("BRAM LOCATION");
+        $display("--------------------------------------------------------------");
+
+        $display("Current Tile     = %0d",
+                 current_tile_q);
+
+        $display("Frozen Tile      = %0d",
+                 scale_tile_q);
+
+        $display("Read Tile        = %0d",
+                 bram_rd_tile);
+
+        $display("Write Tile       = %0d",
+                 bram_wr_tile);
+
+
+        $display("");
+
+        $display("Row Group        = %0d",
+                 scale_row_group);
+
+        $display("Column           = %0d",
+                 scale_col);
+
+
+        $display("Rows             = {%0d,%0d}",
+                 bram_wr_row,
+                 bram_wr_row+1);
+
+
+
+        //--------------------------------------------------------
+        // Snapshot source
+        //--------------------------------------------------------
+
+        $display("");
+        $display("MAC SNAPSHOT");
+        $display("--------------------------------------------------------------");
+
+
+        $display("LOW CELL");
+        $display(" snapshot[%0d][%0d]",
+                 {scale_row_group,1'b0},
+                 scale_col);
+
+        $display(" value = %0d (0x%h)",
+                 $signed(scale_tile_value[0]),
+                 scale_tile_value[0]);
+
+
+
+        $display("");
+
+        $display("HIGH CELL");
+        $display(" snapshot[%0d][%0d]",
+                 {scale_row_group,1'b0}+1'b1,
+                 scale_col);
+
+        $display(" value = %0d (0x%h)",
+                 $signed(scale_tile_value[1]),
+                 scale_tile_value[1]);
+
+
+
+
+        //--------------------------------------------------------
+        // Scaling information
+        //--------------------------------------------------------
+
+        $display("");
+        $display("SCALE FACTORS");
+        $display("--------------------------------------------------------------");
+
+
+        $display("LOW:");
+        $display(" Act Scale    = 0x%h",
+                 scaleA[0]);
+
+        $display(" Weight Scale = 0x%h",
+                 scaleB[0]);
+
+
+        $display("");
+
+        $display("HIGH:");
+        $display(" Act Scale    = 0x%h",
+                 scaleA[1]);
+
+        $display(" Weight Scale = 0x%h",
+                 scaleB[1]);
+
+
+
+
+        //--------------------------------------------------------
+        // Accumulation equation
+        //--------------------------------------------------------
+
+        $display("");
+        $display("ACCUMULATION");
+        $display("--------------------------------------------------------------");
+
+
+        $display("LOW CELL");
+
+        $display(" Previous BRAM = 0x%h (%0d)",
+                 scale_accum_in[0],
+                 $signed(scale_accum_in[0]));
+
+        $display(" Scaled Value  = 0x%h",
+                 scale_accum_out[0]);
+
+        $display(" New BRAM      = 0x%h",
+                 scale_accum_out[0]);
+
+
+
+        $display("");
+
+        $display("HIGH CELL");
+
+        $display(" Previous BRAM = 0x%h (%0d)",
+                 scale_accum_in[1],
+                 $signed(scale_accum_in[1]));
+
+        $display(" Scaled Value  = 0x%h",
+                 scale_accum_out[1]);
+
+        $display(" New BRAM      = 0x%h",
+                 scale_accum_out[1]);
+
+
+
+
+        //--------------------------------------------------------
+        // Write commit
+        //--------------------------------------------------------
+
+        $display("");
+        $display("BRAM WRITE COMMIT");
+        $display("--------------------------------------------------------------");
+
+
+        $display("Address:");
+        $display(" tile=%0d row=%0d col=%0d",
+                 bram_wr_tile,
+                 bram_wr_row,
+                 bram_wr_col);
+
+
+        $display("");
+
+        $display("LOW WRITE  = 0x%h",
+                 bram_wr_data[15:0]);
+
+        $display("HIGH WRITE = 0x%h",
+                 bram_wr_data[31:16]);
+
+        $display("PACKED     = 0x%08h",
+                 bram_wr_data);
+
+
+
+
+        //--------------------------------------------------------
+        // Automatic failure detection
+        //--------------------------------------------------------
+
+        $display("");
+        $display("CHECKS");
+        $display("--------------------------------------------------------------");
+
+
+        if(scale_tile_q != bram_rd_tile)
+            $display("ERROR: READ TILE MISMATCH");
+
+
+        if(scale_tile_q != bram_wr_tile)
+            $display("ERROR: WRITE TILE MISMATCH");
+
+
+        if(scale_accum_in[0] == 16'h0000 &&
+           scale_fold_count != 0)
+            $display("WARNING: SECOND FOLD READING ZERO LOW CELL");
+
+
+        if(scale_accum_in[1] == 16'h0000 &&
+           scale_fold_count != 0)
+            $display("WARNING: SECOND FOLD READING ZERO HIGH CELL");
+
+
+        if(scale_accum_out[0] == scale_accum_in[0])
+            $display("WARNING: LOW CELL DID NOT CHANGE");
+
+
+        if(scale_accum_out[1] == scale_accum_in[1])
+            $display("WARNING: HIGH CELL DID NOT CHANGE");
+
+
+        $display("==============================================================");
+        $display("");
+
+    end
+end
+
+always_ff @(posedge clk_i) begin
+
+    if(rst_ni && scale_write) begin
+
+        $display("");
+        $display("================================================");
+        $display("SCALE INDEX DEBUG");
+        $display("================================================");
+
+
+        $display("scale_row_group = %0d", scale_row_group);
+        $display("scale_col       = %0d", scale_col);
+
+
+        $display("");
+        $display("ACT SCALE CONTEXT");
+        $display("-----------------");
+
+        $display("ctx_act_scale_lo = 0x%08h",
+                 ctx_act_scale_lo);
+
+        $display("ctx_act_scale_hi = 0x%08h",
+                 ctx_act_scale_hi);
+
+
+        $display("");
+        $display("Selected ACT scales:");
+        $display("scaleA[0] = 0x%02h",
+                 scaleA[0]);
+
+        $display("scaleA[1] = 0x%02h",
+                 scaleA[1]);
+
+
+        case(scale_row_group)
+
+            2'd0: begin
+                $display("Expected rows: 0,1");
+                $display("row0 source: ctx_act_scale_lo[7:0]");
+                $display("row1 source: ctx_act_scale_lo[15:8]");
             end
-        end
-    end
 
-//chk index
-//------------------------------------------------------------
-// Snapshot <-> BRAM Coordinate Translation Debug
-//------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni && scale_busy) begin
-
-        $display("");
-        $display("======================================================");
-        $display("[SCALE_INDEX_DEBUG] [%0t ns]",$time);
-        $display("");
-
-        //--------------------------------------------------
-        // FSM coordinates
-        //--------------------------------------------------
-        $display("FSM COORDINATES");
-        $display("------------------------------");
-        $display("scale_row_group = %0d",scale_row_group);
-        $display("scale_col       = %0d",scale_col);
-        $display("");
-
-        //--------------------------------------------------
-        // Snapshot coordinates
-        //--------------------------------------------------
-        $display("SNAPSHOT LOOKUP");
-        $display("------------------------------");
-
-        $display("LOW  -> snapshot[%0d][%0d] = %0d (0x%h)",
-                    {scale_row_group,1'b0},
-                    scale_col,
-                    $signed(
-                    scale_tile_snapshot_q[{scale_row_group,1'b0}]
-                                         [scale_col]),
-                    scale_tile_snapshot_q[{scale_row_group,1'b0}]
-                                         [scale_col]);
-
-        $display("HIGH -> snapshot[%0d][%0d] = %0d (0x%h)",
-                    ({scale_row_group,1'b0}+1'b1),
-                    scale_col,
-                    $signed(
-                    scale_tile_snapshot_q[{scale_row_group,1'b0}+1'b1]
-                                         [scale_col]),
-                    scale_tile_snapshot_q[{scale_row_group,1'b0}+1'b1]
-                                         [scale_col]);
-
-        $display("");
-
-        //--------------------------------------------------
-        // BRAM coordinates
-        //--------------------------------------------------
-        $display("BRAM COORDINATES");
-        $display("------------------------------");
-
-        $display("READ");
-        $display("Tile      = %0d",bram_rd_tile);
-        $display("Rows      = {%0d,%0d}",
-                    bram_rd_row,
-                    bram_rd_row+1'b1);
-
-        $display("Column    = %0d",bram_rd_col);
-        $display("");
-
-        $display("WRITE");
-        $display("Tile      = %0d",bram_wr_tile);
-        $display("Rows      = {%0d,%0d}",
-                    bram_wr_row,
-                    bram_wr_row+1'b1);
-
-        $display("Column    = %0d",bram_wr_col);
-        $display("");
-
-        //--------------------------------------------------
-        // Translation proof
-        //--------------------------------------------------
-        $display("INDEX TRANSLATION");
-        $display("------------------------------");
-
-        $display("snapshot[%0d][%0d] <----> BRAM(row=%0d,col=%0d)",
-                    {scale_row_group,1'b0},
-                    scale_col,
-                    bram_rd_row,
-                    bram_rd_col);
-
-        $display("snapshot[%0d][%0d] <----> BRAM(row=%0d,col=%0d)",
-                    ({scale_row_group,1'b0}+1'b1),
-                    scale_col,
-                    bram_rd_row+1'b1,
-                    bram_rd_col);
-
-        $display("");
-
-        //--------------------------------------------------
-        // BRAM payloads
-        //--------------------------------------------------
-        $display("BRAM READ VALUES");
-        $display("------------------------------");
-
-        $display("LOW  = 0x%h (%0d)",
-                    scale_accum_in[0],
-                    $signed(scale_accum_in[0]));
-
-        $display("HIGH = 0x%h (%0d)",
-                    scale_accum_in[1],
-                    $signed(scale_accum_in[1]));
-
-        $display("");
-
-        //--------------------------------------------------
-        // Scaled outputs
-        //--------------------------------------------------
-        $display("SCALED RESULTS");
-        $display("------------------------------");
-
-        $display("LOW  -> BRAM(row=%0d,col=%0d) = 0x%h (%0d)",
-                    bram_wr_row,
-                    bram_wr_col,
-                    scale_accum_out[0],
-                    $signed(scale_accum_out[0]));
-
-        $display("HIGH -> BRAM(row=%0d,col=%0d) = 0x%h (%0d)",
-                    bram_wr_row+1'b1,
-                    bram_wr_col,
-                    scale_accum_out[1],
-                    $signed(scale_accum_out[1]));
-
-        $display("");
-
-        //--------------------------------------------------
-        // Consistency checks
-        //--------------------------------------------------
-        if (bram_rd_row != {scale_row_group,1'b0})
-            $display("ERROR : BRAM READ ROW MISMATCH!");
-
-        if (bram_wr_row != {scale_row_group,1'b0})
-            $display("ERROR : BRAM WRITE ROW MISMATCH!");
-
-        if (bram_rd_col != scale_col)
-            $display("ERROR : BRAM READ COLUMN MISMATCH!");
-
-        if (bram_wr_col != scale_col)
-            $display("ERROR : BRAM WRITE COLUMN MISMATCH!");
-
-        $display("======================================================");
-        $display("");
-
-    end
-end
-
-//end
-
-
-//------------------------------------------------------------
-// Scale Context Debug
-//------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        if (context_ready) begin
-            $display("");
-            $display("======================================================");
-            $display("[SCALE_CONTEXT] [%0t ns]", $time);
-            $display("ACT_SCALE_LO    = %h", ctx_act_scale_lo);
-            $display("ACT_SCALE_HI    = %h", ctx_act_scale_hi);
-            $display("WEIGHT_SCALE_LO = %h", ctx_weight_scale_lo);
-            $display("WEIGHT_SCALE_HI = %h", ctx_weight_scale_hi);
-
-            for (int r=0; r<TT; r++) begin
-                $write("Tile Row %0d :",r);
-
-                for (int c=0; c<TT; c++) begin
-                    $write(" %6h",ctx_tile_snapshot[r][c]);
-                end
-
-                $write("\n");
+            2'd1: begin
+                $display("Expected rows: 2,3");
+                $display("row2 source: ctx_act_scale_lo[23:16]");
+                $display("row3 source: ctx_act_scale_lo[31:24]");
             end
 
-            $display("======================================================");
-            $display("");
+            2'd2: begin
+                $display("Expected rows: 4,5");
+                $display("row4 source: ctx_act_scale_hi[7:0]");
+                $display("row5 source: ctx_act_scale_hi[15:8]");
+            end
+
+            2'd3: begin
+                $display("Expected rows: 6,7");
+                $display("row6 source: ctx_act_scale_hi[23:16]");
+                $display("row7 source: ctx_act_scale_hi[31:24]");
+            end
+
+        endcase
+
+
+        $display("");
+        $display("WEIGHT SCALE CONTEXT");
+        $display("--------------------");
+
+        $display("ctx_weight_scale_lo = 0x%08h",
+                 ctx_weight_scale_lo);
+
+        $display("ctx_weight_scale_hi = 0x%08h",
+                 ctx_weight_scale_hi);
+
+
+        $display("");
+        $display("Selected WEIGHT scales:");
+
+        $display("scaleB[0] = 0x%02h",
+                 scaleB[0]);
+
+        $display("scaleB[1] = 0x%02h",
+                 scaleB[1]);
+
+
+        if(scale_col < 4) begin
+            $display("Weight source = LO");
+            $display("Bit range = [%0d +: 8]",
+                     scale_col*8);
         end
-    end
-end
-
-//------------------------------------------------------------
-// Scale Datapath Debug (Updated to follow private registers)
-//------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        if (scale_busy) begin
-
-            $display("");
-            $display("------------------------------------------------------");
-            $display("[SCALE_DEBUG] [%0t ns]",$time);
-
-            $display("Row Group        = %0d",scale_row_group);
-            $display("Column           = %0d",scale_col);
-
-            $display("Tile Value Low   = %0d (0x%h)",
-                        $signed(scale_tile_value[0]),
-                        scale_tile_value[0]);
-
-            $display("Tile Value High  = %0d (0x%h)",
-                        $signed(scale_tile_value[1]),
-                        scale_tile_value[1]);
-
-            $display("Scale A Low      = 0x%h",scaleA[0]);
-            $display("Scale A High     = 0x%h",scaleA[1]);
-
-            $display("Scale B Low      = 0x%h",scaleB[0]);
-            $display("Scale B High     = 0x%h",scaleB[1]);
-
-            $display("Accum In Low     = 0x%h",
-                        scale_accum_in[0]);
-
-            $display("Accum In High    = 0x%h",
-                        scale_accum_in[1]);
-
-            $display("Accum Out Low    = 0x%h",
-                        scale_accum_out[0]);
-
-            $display("Accum Out High   = 0x%h",
-                        scale_accum_out[1]);
-
-            $display("------------------------------------------------------");
-            $display("");
-
+        else begin
+            $display("Weight source = HI");
+            $display("Bit range = [%0d +: 8]",
+                     (scale_col-4)*8);
         end
+
+
+        $display("");
+        $display("SNAPSHOT LOCATION");
+        $display("-----------------");
+
+        $display("cell0 = snapshot[%0d][%0d]",
+                 {scale_row_group,1'b0},
+                 scale_col);
+
+        $display("cell1 = snapshot[%0d][%0d]",
+                 {scale_row_group,1'b0}+1,
+                 scale_col);
+
+
+        $display("================================================");
+        $display("");
+
     end
+
 end
+//DEBUG_end
 
-//------------------------------------------------------------
-// Scale BRAM Write Debug
-//------------------------------------------------------------
-always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-        if (scale_write) begin
-
-            $display("");
-            $display("######################################################");
-            $display("[SCALE_WRITE] [%0t ns]",$time);
-
-            $display("Count");
-            $display("Row Group = %0d",scale_row_group);
-            $display("Column    = %0d",scale_col);
-
-            $display("");
-            $display("BRAM WRITE");
-
-            $display("Tile      = %0d",bram_wr_tile);
-            $display("Row Pair  = {%0d,%0d}",
-                        bram_wr_row,
-                        bram_wr_row+1);
-
-            $display("Column    = %0d",
-                        bram_wr_col);
-
-            $display("");
-
-            $display("WRITE LOW");
-            $display("Data      = 0x%h (%0d)",
-                        bram_wr_data[15:0],
-                        $signed(bram_wr_data[15:0]));
-
-            $display("");
-
-            $display("WRITE HIGH");
-            $display("Data      = 0x%h (%0d)",
-                        bram_wr_data[31:16],
-                        $signed(bram_wr_data[31:16]));
-
-            $display("");
-
-            $display("Packed Write = 0x%08h",
-                        bram_wr_data);
-
-            $display("######################################################");
-            $display("");
-
-        end
-    end
-end
 
 endmodule
