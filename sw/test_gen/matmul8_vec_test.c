@@ -197,7 +197,7 @@ mac_bias(0,0,0,0x3f80);
   mac_mem_test_v0(weights);         // Multiplies v0 by weights[0..31]
   mac_as();                         // Apply activation scales
   mac_ws();                         // Apply weight scales
-  chk = mac_out(0, 0, 2);           // Extract pair result
+  //chk = mac_out(0, 0, 2);           // Extract pair result
 
   // ==========================================
   // BRING-UP TEST 2: Register v1 Verification
@@ -209,7 +209,8 @@ mac_bias(0,0,0,0x3f80);
   mac_mem_test_v1(weights);         // Multiplies v1 by weights[32..63]
   mac_as();
   mac_ws();
-  //chk = mac_out(0, 0, 2);
+  chk = mac_out(0, 0, 2);
+mac_bias(31,7,7,0x3fc0); 
 
 //BRAM write check
   // mac_bias(0,0,0,0x3f80);   // tile0 row0 col0 (even row)

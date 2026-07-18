@@ -103,7 +103,8 @@ module mac_scale_fsm #(
 
             WRITE: begin
                 // Commit write element and evaluate sequence bounds
-                if (count_q == (NUM_GROUPS[CNT_W-1:0] - 1'b1)) begin
+                //if (count_q == (NUM_GROUPS[CNT_W-1:0] - 1'b1)) begin
+		if (count_q == NUM_GROUPS-1) begin
                     state_d = DONE;
                 end else begin
                     count_d = count_q + 1'b1;

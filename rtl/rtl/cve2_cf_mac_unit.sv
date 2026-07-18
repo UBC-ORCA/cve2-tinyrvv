@@ -298,8 +298,8 @@ module cve2_cf_mac_unit
         .scale_busy_i         (scale_busy),
         .scale_done_i         (scale_done),
         .req_ready_o          (req_ready_o),
-        .busy_o               (busy_o),
-        .done_o               (done_o),
+        .busy_o               (busy_main),
+        .done_o               (done_main),
         
         .accum_rd_en_o        (ctrl_accum_rd_en),
         .accum_rd_tile_o      (ctrl_accum_rd_tile),
@@ -312,6 +312,12 @@ module cve2_cf_mac_unit
         .accum_wr_col_o       (ctrl_accum_wr_col),
         .accum_wr_data_o      (ctrl_accum_wr_data)
     );
+
+// STRONG (Correct): Remains busy until the scaler finishes cleaning up
+logic busy_main;
+assign busy_o = busy_main || scale_busy;
+logic done_main;
+assign done_o = done_main || scale_done;
 
     mac_array #(
         .TT(TT)
