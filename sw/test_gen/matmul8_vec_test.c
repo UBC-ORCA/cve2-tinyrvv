@@ -182,7 +182,9 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   load_w_scales(weight_scales);
 
   mac_bias(1,0,0,0x00aa);   // distinctive value to trace how the scale-fold reads propagate it
-mac_bias(0,0,0,0x3f80); 
+mac_bias(0,0,0,0x3f80);
+   mac_bias(0,7,7,0x4120);   // tile0 row7 col7 (ODD row - must not assert or spill to tile1)
+ 
 
   // ==========================================
   // BRING-UP TEST 1: Register v0 Verification

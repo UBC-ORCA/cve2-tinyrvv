@@ -372,11 +372,12 @@ module cve2_cf_mac_unit
 
     // Active scale datapath logic using decoupled scale registers
     always_comb begin
-        //scale_tile_value[0] = scale_tile_snapshot_q[scale_row_group][scale_col];
-        //scale_tile_value[1] = scale_tile_snapshot_q[scale_row_group + 2'd4][scale_col];
 
- 	scale_tile_value[0] = scale_tile_snapshot_q[{scale_row_group,1'b0}][scale_col];
-    	scale_tile_value[1] = scale_tile_snapshot_q[{scale_row_group,1'b0}+1][scale_col];
+// 	scale_tile_value[0] = scale_tile_snapshot_q[{scale_row_group,1'b0}][scale_col];
+//    	scale_tile_value[1] = scale_tile_snapshot_q[{scale_row_group,1'b0}+1][scale_col];
+
+ 	scale_tile_value[0] = ctx_tile_snapshot[{scale_row_group,1'b0}][scale_col];
+    	scale_tile_value[1] = ctx_tile_snapshot[{scale_row_group,1'b0}+1][scale_col];
     end
 
     logic [7:0]  scaleA          [0:1];
