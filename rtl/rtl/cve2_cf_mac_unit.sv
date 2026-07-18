@@ -371,8 +371,11 @@ module cve2_cf_mac_unit
 
     // Active scale datapath logic using decoupled scale registers
     always_comb begin
-        scale_tile_value[0] = scale_tile_snapshot_q[scale_row_group][scale_col];
-        scale_tile_value[1] = scale_tile_snapshot_q[scale_row_group + 2'd4][scale_col];
+        //scale_tile_value[0] = scale_tile_snapshot_q[scale_row_group][scale_col];
+        //scale_tile_value[1] = scale_tile_snapshot_q[scale_row_group + 2'd4][scale_col];
+
+ 	scale_tile_value[0] = scale_tile_snapshot_q[{scale_row_group,1'b0}][scale_col];
+    	scale_tile_value[1] = scale_tile_snapshot_q[{scale_row_group,1'b0}+1][scale_col];
     end
 
     logic [7:0]  scaleA          [0:1];
@@ -437,6 +440,157 @@ module cve2_cf_mac_unit
             end
         end
     end
+
+//chk index
+//------------------------------------------------------------
+// Snapshot <-> BRAM Coordinate Translation Debug
+//------------------------------------------------------------
+always_ff @(posedge clk_i) begin
+    if (rst_ni && scale_busy) begin
+
+        $display("");
+        $display("======================================================");
+        $display("[SCALE_INDEX_DEBUG] [%0t ns]",$time);
+        $display("");
+
+        //--------------------------------------------------
+        // FSM coordinates
+        //--------------------------------------------------
+        $display("FSM COORDINATES");
+        $display("------------------------------");
+        $display("scale_row_group = %0d",scale_row_group);
+        $display("scale_col       = %0d",scale_col);
+        $display("");
+
+        //--------------------------------------------------
+        // Snapshot coordinates
+        //--------------------------------------------------
+        $display("SNAPSHOT LOOKUP");
+        $display("------------------------------");
+
+        $display("LOW  -> snapshot[%0d][%0d] = %0d (0x%h)",
+                    {scale_row_group,1'b0},
+                    scale_col,
+                    $signed(
+                    scale_tile_snapshot_q[{scale_row_group,1'b0}]
+                                         [scale_col]),
+                    scale_tile_snapshot_q[{scale_row_group,1'b0}]
+                                         [scale_col]);
+
+        $display("HIGH -> snapshot[%0d][%0d] = %0d (0x%h)",
+                    ({scale_row_group,1'b0}+1'b1),
+                    scale_col,
+                    $signed(
+                    scale_tile_snapshot_q[{scale_row_group,1'b0}+1'b1]
+                                         [scale_col]),
+                    scale_tile_snapshot_q[{scale_row_group,1'b0}+1'b1]
+                                         [scale_col]);
+
+        $display("");
+
+        //--------------------------------------------------
+        // BRAM coordinates
+        //--------------------------------------------------
+        $display("BRAM COORDINATES");
+        $display("------------------------------");
+
+        $display("READ");
+        $display("Tile      = %0d",bram_rd_tile);
+        $display("Rows      = {%0d,%0d}",
+                    bram_rd_row,
+                    bram_rd_row+1'b1);
+
+        $display("Column    = %0d",bram_rd_col);
+        $display("");
+
+        $display("WRITE");
+        $display("Tile      = %0d",bram_wr_tile);
+        $display("Rows      = {%0d,%0d}",
+                    bram_wr_row,
+                    bram_wr_row+1'b1);
+
+        $display("Column    = %0d",bram_wr_col);
+        $display("");
+
+        //--------------------------------------------------
+        // Translation proof
+        //--------------------------------------------------
+        $display("INDEX TRANSLATION");
+        $display("------------------------------");
+
+        $display("snapshot[%0d][%0d] <----> BRAM(row=%0d,col=%0d)",
+                    {scale_row_group,1'b0},
+                    scale_col,
+                    bram_rd_row,
+                    bram_rd_col);
+
+        $display("snapshot[%0d][%0d] <----> BRAM(row=%0d,col=%0d)",
+                    ({scale_row_group,1'b0}+1'b1),
+                    scale_col,
+                    bram_rd_row+1'b1,
+                    bram_rd_col);
+
+        $display("");
+
+        //--------------------------------------------------
+        // BRAM payloads
+        //--------------------------------------------------
+        $display("BRAM READ VALUES");
+        $display("------------------------------");
+
+        $display("LOW  = 0x%h (%0d)",
+                    scale_accum_in[0],
+                    $signed(scale_accum_in[0]));
+
+        $display("HIGH = 0x%h (%0d)",
+                    scale_accum_in[1],
+                    $signed(scale_accum_in[1]));
+
+        $display("");
+
+        //--------------------------------------------------
+        // Scaled outputs
+        //--------------------------------------------------
+        $display("SCALED RESULTS");
+        $display("------------------------------");
+
+        $display("LOW  -> BRAM(row=%0d,col=%0d) = 0x%h (%0d)",
+                    bram_wr_row,
+                    bram_wr_col,
+                    scale_accum_out[0],
+                    $signed(scale_accum_out[0]));
+
+        $display("HIGH -> BRAM(row=%0d,col=%0d) = 0x%h (%0d)",
+                    bram_wr_row+1'b1,
+                    bram_wr_col,
+                    scale_accum_out[1],
+                    $signed(scale_accum_out[1]));
+
+        $display("");
+
+        //--------------------------------------------------
+        // Consistency checks
+        //--------------------------------------------------
+        if (bram_rd_row != {scale_row_group,1'b0})
+            $display("ERROR : BRAM READ ROW MISMATCH!");
+
+        if (bram_wr_row != {scale_row_group,1'b0})
+            $display("ERROR : BRAM WRITE ROW MISMATCH!");
+
+        if (bram_rd_col != scale_col)
+            $display("ERROR : BRAM READ COLUMN MISMATCH!");
+
+        if (bram_wr_col != scale_col)
+            $display("ERROR : BRAM WRITE COLUMN MISMATCH!");
+
+        $display("======================================================");
+        $display("");
+
+    end
+end
+
+//end
+
 
 //------------------------------------------------------------
 // Scale Context Debug

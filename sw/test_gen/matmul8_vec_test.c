@@ -182,7 +182,7 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   load_w_scales(weight_scales);
 
   mac_bias(1,0,0,0x00aa);   // distinctive value to trace how the scale-fold reads propagate it
-
+mac_bias(0,0,0,0x3f80); 
 
   // ==========================================
   // BRING-UP TEST 1: Register v0 Verification
@@ -211,6 +211,9 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
   // mac_bias(0,7,7,0x4120);   // tile0 row7 col7 (ODD row - must not assert or spill to tile1)
   // mac_bias(1,0,0,0x4040);   // tile1 row0 col0 (must stay clean)
   // mac_bias(31,7,7,0x3fc0);  // tile31 row7 col7 (ODD row, last tile - must not spill past)
+
+  // mac_bias(0,0,0,0x3f80);   // tile0 row0 col0 (even row), test double write to one cell
+
 
   // ==========================================
   // BRING-UP TEST 3: Register v31 Boundary Verification
