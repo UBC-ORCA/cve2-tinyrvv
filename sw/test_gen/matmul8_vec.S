@@ -1418,6 +1418,26 @@ acc_bank:
     ACCBANK(10)
     ret
 
+// bram_rd(tile,row,col): read the accumulator BRAM pair {row+1,row} at col -> rd (GPR)
+// funct7=0x0E, CUSTOM2. rs1 holds {tile[10:6],row[5:3],col[2:0]}, rd = destination.
+#define BRAMRD(rd, rs1) \
+.word (((0x0E & 0x7F) << 25) | \
+       (0 << 20)              | \
+       (((rs1) & 0x1F) << 15) | \
+       (0 << 12)              | \
+       (((rd) & 0x1F) << 7)   | \
+       CUSTOM2)
+
+.globl bram_rd
+bram_rd:
+    # a0 = tile, a1 = row (EVEN), a2 = col  -> returns {row+1,row} pair in a0
+    slli    t5, a0, 6       # tile << 6   (t5/t6 scratch: preserve scale regs t1-t4)
+    slli    t6, a1, 3       # row << 3
+    or      t5, t5, t6
+    or      t5, t5, a2      # t5 = {tile[10:6], row[5:3], col[2:0]}
+    BRAMRD(10, 30)          # rd = x10 = a0, rs1 = x30 = t5
+    ret
+
 
 #
 # a0 = tile

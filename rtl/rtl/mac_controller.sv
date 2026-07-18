@@ -160,9 +160,11 @@ module mac_controller #(
     assign mv_odd_col_idx_o  = {mv_pair_idx, 1'b1};
 
     logic [4:0] scalar_waddr_q;
+    logic       brd_phase_q, brd_phase_d;   // BRAM read: 0=issue read, 1=capture+writeback
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
+            brd_phase_q        <= 1'b0;
             op_q               <= cve2_pkg::OP_ZZ;
             vs1_q              <= '0;
             weight_blk_q       <= '0; 
@@ -183,7 +185,8 @@ module mac_controller #(
             state_q            <= state_d;
             count_q            <= count_d;
             mem_req_sent_q     <= mem_req_sent_d;
-            
+            brd_phase_q        <= brd_phase_d;
+
             snapshot_valid_q   <= 1'b0;
             act_scale_pulse    <= 1'b0;
             weight_scale_pulse <= 1'b0;
@@ -221,18 +224,28 @@ module mac_controller #(
     always_comb begin
         state_d        = state_q;
         count_d        = count_q;
+        brd_phase_d    = brd_phase_q;
         mem_req_sent_d = mem_req_sent_q;
 
         case (state_q)
             IDLE: begin
                 count_d        = '0;
                 mem_req_sent_d = 1'b0;
+                brd_phase_d    = 1'b0;
                 if (req_valid_i) begin
                     state_d = EXEC;
                 end
             end
             EXEC: begin
-                if ((op_q == cve2_pkg::OP_ZZ )    ||
+                if (op_q == cve2_pkg::OP_BRAM_RD) begin
+                    if (!brd_phase_q) begin
+                        brd_phase_d = 1'b1;   // read issued; capture/writeback next cycle
+                    end else begin
+                        brd_phase_d = 1'b0;
+                        state_d     = DONE;
+                    end
+                end
+                else if ((op_q == cve2_pkg::OP_ZZ )    ||
                     (op_q == cve2_pkg::OP_MAC)    ||
                     (op_q == cve2_pkg::OP_MVE)    ||
                     (op_q == cve2_pkg::OP_MVO)    ||
@@ -341,6 +354,18 @@ module mac_controller #(
                         accum_wr_row_o  = bias_row;
                         accum_wr_col_o  = bias_col;
                         accum_wr_data_o = bias_value;
+                    end
+                    cve2_pkg::OP_BRAM_RD: begin
+                        if (!brd_phase_q) begin
+                            // phase 0: issue the (synchronous) BRAM read
+                            accum_rd_en_o   = 1'b1;
+                            accum_rd_tile_o = bias_tile;   // rs1[10:6]
+                            accum_rd_row_o  = bias_row;    // rs1[5:3] (even -> reads pair n, n+1)
+                            accum_rd_col_o  = bias_col;    // rs1[2:0]
+                        end else begin
+                            // phase 1: data is valid, write it back to the GPR
+                            scalar_we_o = 1'b1;
+                        end
                     end
                     default: ;
                 endcase
