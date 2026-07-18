@@ -285,7 +285,8 @@ typedef enum logic [3:0] {
   OP_MAC_AS  = 4'd10,
   OP_MAC_WS  = 4'd11,
   OP_MAC_BIAS  = 4'd12,
-  OP_ACC_BANK  = 4'd13
+  OP_ACC_BANK  = 4'd13,
+  OP_BRAM_RD   = 4'd14
 } mac_op_e;
 
 // --- [end] ---

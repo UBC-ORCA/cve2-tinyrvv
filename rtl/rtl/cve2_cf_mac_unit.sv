@@ -58,7 +58,8 @@ module cve2_cf_mac_unit
     logic [2:0]  mv_odd_col_idx;
     logic [2:0]  mv_row_idx;
     logic [31:0] mv_data;
-    assign scalar_wdata_o = mv_data;
+    // BRAM_RD returns the accumulator read pair; MV ops return the raw tile.
+    assign scalar_wdata_o = (cf_req_op_i == cve2_pkg::OP_BRAM_RD) ? bram_rd_data : mv_data;
 
     logic [4:0]  scalar_waddr;
     assign scalar_waddr = req_instr_i[11:7];
