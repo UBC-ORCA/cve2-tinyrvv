@@ -183,8 +183,8 @@ for (int i = 0; i < WORDS_PER_VREG * NUM_VREGS; i++) {
 //  mac_bias(1,0,0,0x00aa);   // distinctive value to trace how the scale-fold reads propagate it
 mac_bias(0,0,0,0x3f80);
    mac_bias(0,7,7,0x4120);   // tile0 row7 col7 (ODD row - must not assert or spill to tile1)
-  mac_bias(1,0,0,0x4120);   // distinctive value to trace how the scale-fold reads propagate it
-  mac_bias(1,0,0,0x4120);   // distinctive value to trace how the scale-fold reads propagate it
+  //mac_bias(1,0,0,0x4120);   // distinctive value to trace how the scale-fold reads propagate it
+//  mac_bias(1,0,0,0x4120);   // distinctive value to trace how the scale-fold reads propagate it
 
    load_act_scales(act_scales);
   load_w_scales(weight_scales);
@@ -197,7 +197,6 @@ mac_bias(0,0,0,0x3f80);
   mac_mem_test_v0(weights);         // Multiplies v0 by weights[0..31]
   mac_as();                         // Apply activation scales
   mac_ws();                         // Apply weight scales
-  //chk = mac_out(0, 0, 2);           // Extract pair result
 
   // ==========================================
   // BRING-UP TEST 2: Register v1 Verification
