@@ -62,8 +62,8 @@ output logic [31:0] mv_data_o
     // Decoded INT5 quanta vectors
     //----------------------------------------------------------
 
-    logic signed [4:0] act_q [0:TT-1];
-    logic signed [4:0] wt_q  [0:TT-1];
+    // logic signed [4:0] act_q [0:TT-1];
+    // logic signed [4:0] wt_q  [0:TT-1];
 
 
     //----------------------------------------------------------
@@ -72,32 +72,32 @@ output logic [31:0] mv_data_o
     // Decode once per vector element.
     //----------------------------------------------------------
 
-    genvar i;
+    // genvar i;
 
-    generate
+    // generate
 
-        for (i = 0; i < TT; i++) begin : GEN_DECODER
-
-
-            fp4_decoder u_act_decoder (
-
-                .fp4_i    (act_i[i]),
-                .quanta_o (act_q[i])
-
-            );
+    //     for (i = 0; i < TT; i++) begin : GEN_DECODER
 
 
-            fp4_decoder u_wt_decoder (
+    //         fp4_decoder u_act_decoder (
 
-                .fp4_i    (wt_i[i]),
-                .quanta_o (wt_q[i])
+    //             .fp4_i    (act_i[i]),
+    //             .quanta_o (act_q[i])
 
-            );
+    //         );
 
 
-        end
+    //         fp4_decoder u_wt_decoder (
 
-    endgenerate
+    //             .fp4_i    (wt_i[i]),
+    //             .quanta_o (wt_q[i])
+
+    //         );
+
+
+    //     end
+
+    // endgenerate
 
 
 
@@ -150,9 +150,9 @@ assign cell_mv_clear =
                     .clear_i  (clear_i),
 		    .mv_clear_i(cell_mv_clear), // for mv
 
-                    // decoded FP4 quanta
-                    .act_i    (act_q[r]),
-                    .wt_i     (wt_q[c]),
+                    // fp4 activation and weights
+                    .fp4_act_i    (act_i[r]),
+                    .fp4_wt_i     (wt_i[c]),
 
                     .accum_o  (accum_o[r][c])
 
